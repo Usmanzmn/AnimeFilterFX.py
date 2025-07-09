@@ -1,1 +1,2 @@
-packages.txt
+ffmpeg
+libgl1
