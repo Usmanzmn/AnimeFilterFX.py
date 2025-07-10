@@ -1,12 +1,12 @@
 import streamlit as st
 import os
 import tempfile
+import time
 from moviepy.editor import (
     VideoFileClip,
     concatenate_videoclips,
     CompositeVideoClip,
-    ColorClip,
-    vfx
+    ColorClip
 )
 from PIL import Image
 import numpy as np
@@ -43,6 +43,7 @@ style = st.selectbox("🎨 Choose a Style", [
 ], key="style_select")
 
 if uploaded_file:
+    start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.mp4")
         with open(input_path, "wb") as f:
@@ -54,6 +55,9 @@ if uploaded_file:
         output_path = os.path.join(tmpdir, "styled.mp4")
         styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
         st.video(output_path)
+
+    end_time = time.time()
+    st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
 # ---------- Feature 2 ----------
 st.markdown("---")
@@ -67,6 +71,7 @@ style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
 ], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
+    start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = []
         for i, file in enumerate(uploaded_files):
@@ -95,6 +100,9 @@ if uploaded_files and len(uploaded_files) == 3:
             with open(output_final, "rb") as f:
                 st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
 
+            end_time = time.time()
+            st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
+
         except Exception as e:
             st.error(f"❌ FFmpeg merge failed.\n\n{e}")
 
@@ -110,6 +118,7 @@ style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
 ], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
+    start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = []
         for i, f in enumerate(uploaded_seq):
@@ -157,6 +166,9 @@ if uploaded_seq and len(uploaded_seq) == 3:
             st.video(final_output)
             with open(final_output, "rb") as f:
                 st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
+
+            end_time = time.time()
+            st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
