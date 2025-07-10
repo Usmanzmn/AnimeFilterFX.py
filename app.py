@@ -8,7 +8,8 @@ from moviepy.editor import (
     VideoFileClip,
     CompositeVideoClip,
     ColorClip,
-    concatenate_videoclips
+    concatenate_videoclips,
+    ImageClip
 )
 
 # ---------------------- Streamlit UI Setup ----------------------
@@ -60,7 +61,6 @@ if uploaded_file:
     try:
         transform_func = get_transform_function(style_option)
 
-        start_time = time.time()
         with st.spinner("✨ Applying style transformation... Please wait."):
             clip = VideoFileClip(input_path)
             transformed_clip = clip.fl_image(transform_func)
@@ -68,9 +68,6 @@ if uploaded_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_output:
                 output_path = tmp_output.name
                 transformed_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-        end_time = time.time()
-        st.info(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -148,9 +145,14 @@ elif uploaded_files and len(uploaded_files) != 3:
 
 # ---------------------- Feature 3: Sequential Video Playback ----------------------
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame (Side-by-Side Order)")
+st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame (Side-by-Side Order with Faded Neighbors)")
 
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential side-by-side playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
+uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
+style_seq = st.selectbox("🎨 Apply Style to Sequential Video", (
+    "None",
+    "🌸 Soft Pastel Anime-Like Style",
+    "🎞️ Cinematic Warm Filter"
+), key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -162,20 +164,33 @@ if uploaded_seq and len(uploaded_seq) == 3:
             paths.append(p)
 
         try:
-            clips = []
-            for path in paths:
-                clip = VideoFileClip(path).resize(height=1080)
-                bg = ColorClip(size=(1920, 1080), color=(0, 0, 0)).set_duration(clip.duration)
-                final = CompositeVideoClip([bg, clip.set_position(("center", "center"))])
-                clips.append(final)
+            transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
 
-            merged_seq = concatenate_videoclips(clips, method="compose")
+            clips = []
+            for i in range(3):
+                main_clip = VideoFileClip(paths[i]).fl_image(transform_func).resize(height=1080)
+                freeze_1 = ImageClip(transform_func(VideoFileClip(paths[0]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((0, 0)).set_opacity(0.3 if i != 0 else 1)
+                freeze_2 = ImageClip(transform_func(VideoFileClip(paths[1]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((640, 0)).set_opacity(0.3 if i != 1 else 1)
+                freeze_3 = ImageClip(transform_func(VideoFileClip(paths[2]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((1280, 0)).set_opacity(0.3 if i != 2 else 1)
+
+                bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(main_clip.duration)
+                playing = main_clip.set_position((640 * i, 0))
+
+                combo = CompositeVideoClip([
+                    bg,
+                    freeze_1 if i != 0 else playing,
+                    freeze_2 if i != 1 else playing,
+                    freeze_3 if i != 2 else playing
+                ])
+                clips.append(combo)
+
+            final = concatenate_videoclips(clips)
             out_path = os.path.join(tmpdir, "sequential_output.mp4")
-            merged_seq.write_videofile(out_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+            final.write_videofile(out_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
             st.video(out_path)
             with open(out_path, "rb") as f:
-                st.download_button("💾 Download Sequential Video", data=f.read(), file_name="sequential_16x9.mp4", mime="video/mp4")
+                st.download_button("💾 Download Sequential Side-by-Side Video", f.read(), file_name="sequential_visible.mp4", mime="video/mp4")
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
