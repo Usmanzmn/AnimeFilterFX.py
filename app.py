@@ -13,10 +13,11 @@ from moviepy.editor import (
     TextClip
 )
 
+# ---------------------- Streamlit UI Setup ----------------------
 st.set_page_config(page_title="Anime + Cinematic Video Filters", page_icon="🎨")
 st.title("🎨 Anime & Cinematic Style Video Transformation")
 
-# ---------- Style Filter Functions ----------
+# ---------------------- Filter Functions ----------------------
 def transform_soft_pastel_anime(frame):
     blur = cv2.bilateralFilter(frame, 9, 75, 75)
     hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -44,20 +45,28 @@ def get_transform_function(option):
         "🎞️ Cinematic Warm Filter": transform_cinematic_warm,
     }.get(option, lambda x: x)
 
-# ---------- Watermark Animation ----------
-def add_moving_watermark(clip, text="@USMIKASHMIRI", duration=8, y_offset=-160):
-    def moving_position(t):
-        x = int(clip.w - (clip.w + 300) * (t % duration) / duration)
-        y = clip.h + y_offset
-        return (x, y)
+# ---------------------- Watermark Animation Function ----------------------
+def add_moving_watermark(clip, text="@USMIKASHMIRI"):
+    duration = clip.duration
+    w = clip.w
+    start_x = w
+    end_x = -300
+    y_pos = clip.h - 160
 
-    txt_clip = (TextClip(text, fontsize=40, color='white', font="Arial-Bold")
-                .set_duration(clip.duration)
+    def moving_position(t):
+        cycle_t = t % 8
+        progress = min(1.0, cycle_t / 8.0)
+        x = start_x + (end_x - start_x) * progress
+        return (x, y_pos)
+
+    txt_clip = (TextClip(text, fontsize=40, color='white', font="Arial-Bold", method='caption', size=(300, 60))
+                .set_duration(duration)
                 .set_position(moving_position)
                 .set_opacity(0.6))
+
     return CompositeVideoClip([clip, txt_clip])
 
-# ---------- Feature 1: Style Filter for Single Video ----------
+# ---------------------- Feature 1: Single Video Filter ----------------------
 st.header("🎨 Apply Style Filter to a Single Video")
 
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4", "mov", "avi"], key="single")
@@ -77,17 +86,18 @@ if uploaded_file:
         with st.spinner("✨ Applying style transformation... Please wait."):
             clip = VideoFileClip(input_path)
             transformed_clip = clip.fl_image(transform_func)
+            final_clip = add_moving_watermark(transformed_clip)
 
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_output:
                 output_path = tmp_output.name
-                transformed_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+                final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("🎥 Original Video")
             st.video(input_path)
         with col2:
-            st.subheader("🧑‍🎨 Styled Video")
+            st.subheader("🧑‍🎨 Styled + Watermarked")
             with open(output_path, "rb") as f:
                 st.video(f.read())
                 st.download_button("💾 Download Styled Video", f, "styled_video.mp4", mime="video/mp4")
@@ -95,7 +105,7 @@ if uploaded_file:
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
-# ---------- Feature 2: Merge 3 Vertical Shorts Side-by-Side ----------
+# ---------------------- Feature 2: Merge 3 Vertical Shorts Side-by-Side ----------------------
 st.markdown("---")
 st.header("🎬 Merge 3 Vertical Shorts Side-by-Side (16:9) + Apply Style")
 
@@ -116,13 +126,14 @@ if uploaded_files and len(uploaded_files) == 3:
 
         merged_path = os.path.join(tmpdir, "merged.mp4")
 
+        # Merge using ffmpeg command
         command = f"""
         ffmpeg -y -i {file_paths[0]} -i {file_paths[1]} -i {file_paths[2]} -filter_complex "
         [0:v]scale=640:1080[v0];
         [1:v]scale=640:1080[v1];
         [2:v]scale=640:1080[v2];
-        [v0][v1][v2]hstack=inputs=3[stacked]
-        " -map "[stacked]" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p {merged_path}
+        [v0][v1][v2]hstack=inputs=3[outv]
+        " -map "[outv]" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p {merged_path}
         """
         result = os.system(command)
 
@@ -138,13 +149,13 @@ if uploaded_files and len(uploaded_files) == 3:
                 transform_func = get_transform_function(style_merge)
                 clip = VideoFileClip(merged_path)
                 styled_clip = clip.fl_image(transform_func)
-                styled_clip = add_moving_watermark(styled_clip)
+                final_clip = add_moving_watermark(styled_clip)
 
                 styled_path = os.path.join(tmpdir, "styled_merged.mp4")
-                styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+                final_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
                 with col2:
-                    st.subheader("🧑‍🎨 After Style + Watermark")
+                    st.subheader("🧑‍🎨 After Style")
                     with open(styled_path, "rb") as f:
                         st.video(f.read())
                         st.download_button("💾 Download Styled Video", f, "styled_merged.mp4", mime="video/mp4")
@@ -156,11 +167,11 @@ if uploaded_files and len(uploaded_files) == 3:
 elif uploaded_files and len(uploaded_files) != 3:
     st.warning("⚠️ Please upload exactly 3 vertical videos.")
 
-# ---------- Feature 3: Sequential Playback with Faded Neighbors ----------
+# ---------------------- Feature 3: Sequential Playback with Faded Neighbors ----------------------
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame (Side-by-Side Order with Faded Neighbors)")
+st.header("🕒 Play 3 Videos Sequentially with Faded Neighbors")
 
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
+uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
 style_seq = st.selectbox("🎨 Apply Style to Sequential Video", (
     "None",
     "🌸 Soft Pastel Anime-Like Style",
@@ -182,17 +193,25 @@ if uploaded_seq and len(uploaded_seq) == 3:
             clips = []
             for i in range(3):
                 main_clip = VideoFileClip(paths[i]).fl_image(transform_func).resize(height=1080)
-                freeze_1 = ImageClip(transform_func(VideoFileClip(paths[0]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((0, 0)).set_opacity(0.6 if i != 0 else 1)
-                freeze_2 = ImageClip(transform_func(VideoFileClip(paths[1]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((640, 0)).set_opacity(0.6 if i != 1 else 1)
-                freeze_3 = ImageClip(transform_func(VideoFileClip(paths[2]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((1280, 0)).set_opacity(0.6 if i != 2 else 1)
+
+                freeze_1 = ImageClip(transform_func(VideoFileClip(paths[0]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((0, 0)).set_opacity(0.3 if i != 0 else 1)
+                freeze_2 = ImageClip(transform_func(VideoFileClip(paths[1]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((640, 0)).set_opacity(0.3 if i != 1 else 1)
+                freeze_3 = ImageClip(transform_func(VideoFileClip(paths[2]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((1280, 0)).set_opacity(0.3 if i != 2 else 1)
 
                 bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(main_clip.duration)
-                combo = CompositeVideoClip([bg, freeze_1, freeze_2, freeze_3])
+                playing = main_clip.set_position((640 * i, 0))
+
+                combo = CompositeVideoClip([
+                    bg,
+                    freeze_1 if i != 0 else playing,
+                    freeze_2 if i != 1 else playing,
+                    freeze_3 if i != 2 else playing
+                ])
+
+                combo = add_moving_watermark(combo)
                 clips.append(combo)
 
             final = concatenate_videoclips(clips)
-            final = add_moving_watermark(final)
-
             out_path = os.path.join(tmpdir, "sequential_output.mp4")
             final.write_videofile(out_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
