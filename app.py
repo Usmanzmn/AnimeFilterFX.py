@@ -166,25 +166,41 @@ if uploaded_seq and len(uploaded_seq) == 3:
         try:
             transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
 
-            clips = []
+            # Load all clips
+            clips_raw = [VideoFileClip(p).resize(height=1080) for p in paths]
+            clips_transformed = [clip.fl_image(transform_func) for clip in clips_raw]
+
+            # Create 2-second intro where all 3 videos are fully visible side-by-side
+            intro_clips = [clip.resize(width=640) for clip in clips_transformed]
+            intro_stacked = CompositeVideoClip([
+                intro_clips[0].set_position((0, 0)),
+                intro_clips[1].set_position((640, 0)),
+                intro_clips[2].set_position((1280, 0)),
+            ], size=(1920, 1080)).subclip(0, 2)
+
+            # Sequential playback
+            sequences = []
             for i in range(3):
-                main_clip = VideoFileClip(paths[i]).fl_image(transform_func).resize(height=1080)
-                freeze_1 = ImageClip(transform_func(VideoFileClip(paths[0]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((0, 0)).set_opacity(0.3 if i != 0 else 1)
-                freeze_2 = ImageClip(transform_func(VideoFileClip(paths[1]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((640, 0)).set_opacity(0.3 if i != 1 else 1)
-                freeze_3 = ImageClip(transform_func(VideoFileClip(paths[2]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((1280, 0)).set_opacity(0.3 if i != 2 else 1)
+                main_clip = clips_transformed[i]
+                dur = main_clip.duration
 
-                bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(main_clip.duration)
-                playing = main_clip.set_position((640 * i, 0))
+                side_1 = ImageClip(transform_func(clips_raw[0].get_frame(0))).resize(height=1080).set_duration(dur).set_position((0, 0)).set_opacity(0.6 if i != 0 else 1)
+                side_2 = ImageClip(transform_func(clips_raw[1].get_frame(0))).resize(height=1080).set_duration(dur).set_position((640, 0)).set_opacity(0.6 if i != 1 else 1)
+                side_3 = ImageClip(transform_func(clips_raw[2].get_frame(0))).resize(height=1080).set_duration(dur).set_position((1280, 0)).set_opacity(0.6 if i != 2 else 1)
 
-                combo = CompositeVideoClip([
+                bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(dur)
+                main_clip_positioned = main_clip.resize(width=640).set_position((640 * i, 0))
+
+                overlay = CompositeVideoClip([
                     bg,
-                    freeze_1 if i != 0 else playing,
-                    freeze_2 if i != 1 else playing,
-                    freeze_3 if i != 2 else playing
-                ])
-                clips.append(combo)
+                    side_1 if i != 0 else main_clip_positioned,
+                    side_2 if i != 1 else main_clip_positioned,
+                    side_3 if i != 2 else main_clip_positioned
+                ], size=(1920, 1080)).set_duration(dur)
 
-            final = concatenate_videoclips(clips)
+                sequences.append(overlay)
+
+            final = concatenate_videoclips([intro_stacked] + sequences)
             out_path = os.path.join(tmpdir, "sequential_output.mp4")
             final.write_videofile(out_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
