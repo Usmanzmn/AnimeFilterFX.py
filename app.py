@@ -6,17 +6,16 @@ import time
 import os
 from moviepy.editor import (
     VideoFileClip,
-    clips_array,
     CompositeVideoClip,
     ColorClip,
     concatenate_videoclips
 )
 
+# ---------------------- Streamlit UI Setup ----------------------
 st.set_page_config(page_title="Anime + Cinematic Video Filters", page_icon="🎨")
 st.title("🎨 Anime & Cinematic Style Video Transformation")
 
 # ---------------------- Filter Functions ----------------------
-
 def transform_soft_pastel_anime(frame):
     blur = cv2.bilateralFilter(frame, 9, 75, 75)
     hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV).astype(np.float32)
@@ -44,12 +43,10 @@ def get_transform_function(option):
         "🎞️ Cinematic Warm Filter": transform_cinematic_warm,
     }.get(option, lambda x: x)
 
-# ---------------------- Single Video ----------------------
-
+# ---------------------- Feature 1: Single Video Style Filter ----------------------
 st.header("🎨 Apply Style Filter to a Single Video")
 
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4", "mov", "avi"], key="single")
-
 style_option = st.selectbox("🎨 Choose a Style", (
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
@@ -65,7 +62,6 @@ if uploaded_file:
 
         start_time = time.time()
         with st.spinner("✨ Applying style transformation... Please wait."):
-
             clip = VideoFileClip(input_path)
             transformed_clip = clip.fl_image(transform_func)
 
@@ -74,8 +70,7 @@ if uploaded_file:
                 transformed_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
 
         end_time = time.time()
-        elapsed = end_time - start_time
-        st.info(f"✅ Completed in {elapsed:.2f} seconds")
+        st.info(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -84,25 +79,17 @@ if uploaded_file:
         with col2:
             st.subheader("🧑‍🎨 Styled Video")
             with open(output_path, "rb") as f:
-                video_bytes = f.read()
-                st.video(video_bytes)
-                st.download_button(
-                    label="💾 Download Styled Video",
-                    data=video_bytes,
-                    file_name="styled_video.mp4",
-                    mime="video/mp4"
-                )
+                st.video(f.read())
+                st.download_button("💾 Download Styled Video", f, "styled_video.mp4", mime="video/mp4")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
-# ---------------------- Feature 1: 3 Merged + Styled Side-by-Side ----------------------
-
+# ---------------------- Feature 2: Merge 3 Vertical Shorts Side-by-Side ----------------------
 st.markdown("---")
 st.header("🎬 Merge 3 Vertical Shorts Side-by-Side (16:9) + Apply Style")
 
 uploaded_files = st.file_uploader("📤 Upload 3 Vertical Videos", type=["mp4"], accept_multiple_files=True, key="merge")
-
 style_merge = st.selectbox("🎨 Apply Style to Merged Video", (
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
@@ -128,7 +115,6 @@ if uploaded_files and len(uploaded_files) == 3:
         [stacked]drawtext=text='@USMIKASHMIRI':x='w-(t*100)%w':y='h-150':fontsize=40:fontcolor=white@0.3:shadowcolor=black:shadowx=2:shadowy=2[outv]
         " -map "[outv]" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p {merged_path}
         """
-
         result = os.system(command)
 
         if result == 0:
@@ -150,9 +136,8 @@ if uploaded_files and len(uploaded_files) == 3:
                 with col2:
                     st.subheader("🧑‍🎨 After Style")
                     with open(styled_path, "rb") as f:
-                        bytes_out = f.read()
-                        st.video(bytes_out)
-                        st.download_button("💾 Download Styled Video", data=bytes_out, file_name="styled_merged.mp4", mime="video/mp4")
+                        st.video(f.read())
+                        st.download_button("💾 Download Styled Video", f, "styled_merged.mp4", mime="video/mp4")
 
             except Exception as e:
                 st.error(f"❌ Error applying style: {e}")
@@ -161,8 +146,7 @@ if uploaded_files and len(uploaded_files) == 3:
 elif uploaded_files and len(uploaded_files) != 3:
     st.warning("⚠️ Please upload exactly 3 vertical videos.")
 
-# ---------------------- Feature 2: Play 3 Videos Sequentially in Landscape ----------------------
-
+# ---------------------- Feature 3: Sequential Video Playback ----------------------
 st.markdown("---")
 st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame (Side-by-Side Order)")
 
