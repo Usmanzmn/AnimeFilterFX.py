@@ -1,373 +1,136 @@
 import streamlit as st
-import cv2
-import numpy as np
 import tempfile
 import os
-from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, concatenate_videoclips
+from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip, vfx
+from moviepy.video.fx.all import fadein, fadeout
+import shutil
+import uuid
+import subprocess
 
-# ---------------------- Streamlit UI Setup ----------------------
-st.set_page_config(page_title="Anime + Cinematic Video Filters", page_icon="🎨")
-st.title("🎨 Anime & Cinematic Style Video Transformation")
+st.set_page_config(page_title="Cartoon Video App", layout="centered")
+st.title("🎬 Cartoon Video Converter with Effects")
 
-# ---------------------- Filter Functions ----------------------
-def transform_soft_pastel_anime(frame):
-    blur = cv2.bilateralFilter(frame, 9, 75, 75)
-    hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV).astype(np.float32)
-    h, s, v = cv2.split(hsv)
-    s *= 0.6
-    v *= 1.2
-    pastel = cv2.merge([h, np.clip(s, 0, 255), np.clip(v, 0, 255)])
-    return cv2.cvtColor(pastel.astype(np.uint8), cv2.COLOR_HSV2BGR)
+# Utility
+def save_uploaded_file(uploaded_file):
+    file_id = str(uuid.uuid4())
+    temp_dir = tempfile.mkdtemp()
+    file_path = os.path.join(temp_dir, f"{file_id}_{uploaded_file.name}")
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return file_path
 
-def transform_cinematic_warm(frame):
-    lut = np.array([min(255, int(i * 1.1 + 10)) for i in range(256)]).astype("uint8")
-    warm = cv2.LUT(frame, lut)
-    hsv = cv2.cvtColor(warm, cv2.COLOR_BGR2HSV).astype(np.float32)
-    h, s, v = cv2.split(hsv)
-    h = (h + 10) % 180
-    s *= 1.1
-    v *= 1.05
-    final = cv2.merge([h, np.clip(s, 0, 255), np.clip(v, 0, 255)])
-    return cv2.cvtColor(final.astype(np.uint8), cv2.COLOR_HSV2BGR)
-
-def get_transform_function(option):
-    return {
-        "🌸 Soft Pastel Anime-Like Style": transform_soft_pastel_anime,
-        "🎞️ Cinematic Warm Filter": transform_cinematic_warm,
-    }.get(option, lambda x: x)
-
-# ---------------------- Feature 1: Single Video Style Filter ----------------------
-st.header("🎨 Apply Style Filter to a Single Video")
-
-uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4", "mov", "avi"], key="single")
-style_option = st.selectbox("🎨 Choose a Style", (
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-), key="style_single")
-
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_input:
-        tmp_input.write(uploaded_file.read())
-        input_path = tmp_input.name
-
+# Feature 1: Cartoonify with Frame-by-Frame Filter
+def cartoonify_video(input_path, output_path):
     try:
-        transform_func = get_transform_function(style_option)
-
-        with st.spinner("✨ Applying style transformation... Please wait."):
-            clip = VideoFileClip(input_path)
-            transformed_clip = clip.fl_image(transform_func)
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_output:
-                output_path = tmp_output.name
-                transformed_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("🎥 Original Video")
-            st.video(input_path)
-        with col2:
-            st.subheader("🧑‍🎨 Styled Video")
-            with open(output_path, "rb") as f:
-                st.video(f.read())
-                st.download_button("💾 Download Styled Video", f, "styled_video.mp4", mime="video/mp4")
-
+        # Example using FFmpeg with cartoon effect (basic)
+        cmd = [
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", "tblend=all_mode=average,framestep=2",
+            "-c:a", "copy", output_path
+        ]
+        subprocess.run(cmd, check=True)
+        return True
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ Error applying cartoon filter: {e}")
+        return False
 
-# ---------------------- Feature 2: Merge 3 Vertical Shorts Side-by-Side ----------------------
-st.markdown("---")
-st.header("🎬 Merge 3 Vertical Shorts Side-by-Side (16:9) + Apply Style")
-
-uploaded_files = st.file_uploader("📤 Upload 3 Vertical Videos", type=["mp4"], accept_multiple_files=True, key="merge")
-style_merge = st.selectbox("🎨 Apply Style to Merged Video", (
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-), key="style_merge")
-
-if uploaded_files and len(uploaded_files) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        file_paths = []
-        for i, file in enumerate(uploaded_files):
-            path = os.path.join(tmpdir, f"input{i}.mp4")
-            with open(path, "wb") as f:
-                f.write(file.read())
-            file_paths.append(path)
-
-        merged_path = os.path.join(tmpdir, "merged.mp4")
-        watermark_text = "@USMIKASHMIRI"
-        command = f"""
-        ffmpeg -y -i "{file_paths[0]}" -i "{file_paths[1]}" -i "{file_paths[2]}" -filter_complex "
-        [0:v]scale=640:1080[v0];
-        [1:v]scale=640:1080[v1];
-        [2:v]scale=640:1080[v2];
-        [v0][v1][v2]hstack=inputs=3[stacked];
-        [stacked]drawtext=text='{watermark_text}':fontsize=40:fontcolor=white@0.8:x=w-mod(t*100\,w+text_w):y=h-160:shadowcolor=black:shadowx=2:shadowy=2[outv]
-        " -map "[outv]" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{merged_path}"
-        """
-        result = os.system(command)
-
-        if result == 0:
-            st.success("✅ Merged video created!")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("🎥 Before Style")
-                st.video(merged_path)
-
-            try:
-                transform_func = get_transform_function(style_merge)
-                clip = VideoFileClip(merged_path)
-                styled_clip = clip.fl_image(transform_func)
-
-                styled_path = os.path.join(tmpdir, "styled_merged.mp4")
-                styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-                with col2:
-                    st.subheader("🧑‍🎨 After Style")
-                    with open(styled_path, "rb") as f:
-                        st.video(f.read())
-                        st.download_button("💾 Download Styled Video", f, "styled_merged.mp4", mime="video/mp4")
-
-            except Exception as e:
-                st.error(f"❌ Error applying style: {e}")
-        else:
-            st.error("❌ FFmpeg merge failed.")
-elif uploaded_files and len(uploaded_files) != 3:
-    st.warning("⚠️ Please upload exactly 3 vertical videos.")
-
-# ---------------------- Feature 3: Sequential Playback with Faded Neighbors ----------------------
-st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame (With Faded Neighbors)")
-
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("🎨 Apply Style to Sequential Video", (
-    "None",
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-), key="style_sequential")
-
-if uploaded_seq and len(uploaded_seq) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, f in enumerate(uploaded_seq):
-            p = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(p, "wb") as out:
-                out.write(f.read())
-            paths.append(p)
-
-        try:
-            transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
-
-            clips = []
-            for i in range(3):
-                clip = VideoFileClip(paths[i]).fl_image(transform_func).resize(height=1080)
-                bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(clip.duration)
-
-                side_0 = VideoFileClip(paths[0]).fl_image(transform_func).resize(height=1080).set_opacity(0.3 if i != 0 else 1)
-                side_1 = VideoFileClip(paths[1]).fl_image(transform_func).resize(height=1080).set_opacity(0.3 if i != 1 else 1)
-                side_2 = VideoFileClip(paths[2]).fl_image(transform_func).resize(height=1080).set_opacity(0.3 if i != 2 else 1)
-
-                stacked = CompositeVideoClip([
-                    bg,
-                    side_0.set_position((0, 0)),
-                    side_1.set_position((640, 0)),
-                    side_2.set_position((1280, 0)),
-                ])
-                clips.append(stacked.set_duration(clip.duration))
-
-            final = concatenate_videoclips(clips)
-            final_path = os.path.join(tmpdir, "sequential_output.mp4")
-            final.write_videofile(final_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-            st.video(final_path)
-            with open(final_path, "rb") as f:
-                st.download_button("💾 Download Sequential Video", f, file_name="sequential_final.mp4", mime="video/mp4")
-
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-elif uploaded_seq and len(uploaded_seq) != 3:
-    st.warning("⚠️ Please upload exactly 3 videos.")
-import streamlit as st
-import cv2
-import numpy as np
-import tempfile
-import os
-from moviepy.editor import VideoFileClip, CompositeVideoClip, ColorClip, concatenate_videoclips, ImageClip
-
-st.set_page_config(page_title="Anime + Cinematic Video Filters", page_icon="🎨")
-st.title("🎨 Anime & Cinematic Style Video Transformation")
-
-# ---------- Filter Functions ----------
-def transform_soft_pastel_anime(frame):
-    blur = cv2.bilateralFilter(frame, 9, 75, 75)
-    hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV).astype(np.float32)
-    h, s, v = cv2.split(hsv)
-    s *= 0.6
-    v *= 1.2
-    pastel = cv2.merge([h, np.clip(s, 0, 255), np.clip(v, 0, 255)])
-    pastel = cv2.cvtColor(pastel.astype(np.uint8), cv2.COLOR_HSV2BGR)
-    return pastel
-
-def transform_cinematic_warm(frame):
-    lut = np.array([min(255, int(i * 1.1 + 10)) for i in range(256)]).astype("uint8")
-    warm = cv2.LUT(frame, lut)
-    hsv = cv2.cvtColor(warm, cv2.COLOR_BGR2HSV).astype(np.float32)
-    h, s, v = cv2.split(hsv)
-    h = (h + 10) % 180
-    s *= 1.1
-    v *= 1.05
-    final = cv2.merge([h, np.clip(s, 0, 255), np.clip(v, 0, 255)])
-    return cv2.cvtColor(final.astype(np.uint8), cv2.COLOR_HSV2BGR)
-
-def get_transform_function(option):
-    return {
-        "🌸 Soft Pastel Anime-Like Style": transform_soft_pastel_anime,
-        "🎞️ Cinematic Warm Filter": transform_cinematic_warm,
-    }.get(option, lambda x: x)
-
-# ---------- Feature 1: Style Single Video ----------
-st.header("🎨 Apply Style Filter to a Single Video")
-uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4", "mov", "avi"], key="single")
-style_option = st.selectbox("🎨 Choose a Style", [
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-], key="style_single")
-
-if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_input:
-        tmp_input.write(uploaded_file.read())
-        input_path = tmp_input.name
-
+# Feature 2: Combine 3 Videos Side-by-Side with Watermark
+def combine_side_by_side(video_files, output_path):
     try:
-        transform_func = get_transform_function(style_option)
-        with st.spinner("✨ Applying style transformation... Please wait."):
-            clip = VideoFileClip(input_path)
-            transformed_clip = clip.fl_image(transform_func)
+        inputs = []
+        for path in video_files:
+            inputs += ["-i", path]
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_output:
-                output_path = tmp_output.name
-                transformed_clip.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+        watermark = (
+            "drawtext=text='@USMIKASHMIRI':"
+            "x=w-mod(t*302\\,w+tw):"
+            "y=h-160:"
+            "fontsize=40:fontcolor=white@0.6:"
+            "shadowcolor=black:shadowx=2:shadowy=2"
+        )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("🎥 Original Video")
-            st.video(input_path)
-        with col2:
-            st.subheader("🧑‍🎨 Styled Video")
-            with open(output_path, "rb") as f:
-                st.video(f.read())
-                st.download_button("💾 Download Styled Video", f, "styled_video.mp4", mime="video/mp4")
-
+        cmd = [
+            "ffmpeg", "-y", *inputs,
+            "-filter_complex",
+            f"[0:v]scale=640:360[vid0];"
+            f"[1:v]scale=640:360[vid1];"
+            f"[2:v]scale=640:360[vid2];"
+            f"[vid0][vid1][vid2]hstack=inputs=3,drawtext={watermark}[v]",
+            "-map", "[v]",
+            "-shortest",
+            output_path
+        ]
+        subprocess.run(cmd, check=True)
+        return True
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.error(f"❌ FFmpeg merge failed: {e}")
+        return False
 
-# ---------- Feature 2: Merge 3 Shorts Side-by-Side ----------
-st.markdown("---")
-st.header("🎬 Merge 3 Vertical Shorts Side-by-Side + Apply Style")
+# Feature 3: Switch Between 3 Videos with Fade and Watermark
+def fade_switch_videos(video_paths, output_path):
+    try:
+        clips = []
+        for path in video_paths:
+            clip = VideoFileClip(path).resize(height=480)
+            clip = clip.fx(fadein, 1).fx(fadeout, 1)
+            clips.append(clip)
 
-uploaded_files = st.file_uploader("📤 Upload 3 Vertical Videos", type=["mp4"], accept_multiple_files=True, key="merge")
-style_merge = st.selectbox("🎨 Apply Style to Merged Video", [
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-], key="style_merge")
+        final_clip = concatenate_videoclips(clips, method="compose")
 
-if uploaded_files and len(uploaded_files) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        file_paths = []
-        for i, file in enumerate(uploaded_files):
-            path = os.path.join(tmpdir, f"input{i}.mp4")
-            with open(path, "wb") as f:
-                f.write(file.read())
-            file_paths.append(path)
+        watermark = (
+            "drawtext=text='@USMIKASHMIRI':"
+            "x=w-mod(t*302\\,w+tw):"
+            "y=h-160:"
+            "fontsize=40:fontcolor=white@0.6:"
+            "shadowcolor=black:shadowx=2:shadowy=2"
+        )
 
-        merged_path = os.path.join(tmpdir, "merged.mp4")
-        watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
+        temp_output = output_path.replace(".mp4", "_temp.mp4")
+        final_clip.write_videofile(temp_output, codec="libx264", audio_codec="aac")
 
-        command = f"""
-        ffmpeg -y -i {file_paths[0]} -i {file_paths[1]} -i {file_paths[2]} -filter_complex "
-        [0:v]scale=640:1080[v0];
-        [1:v]scale=640:1080[v1];
-        [2:v]scale=640:1080[v2];
-        [v0][v1][v2]hstack=inputs=3[stacked];
-        [stacked]{watermark}[outv]
-        " -map "[outv]" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p {merged_path}
-        """
-        result = os.system(command)
+        cmd = [
+            "ffmpeg", "-y", "-i", temp_output,
+            "-vf", watermark,
+            "-c:a", "copy",
+            output_path
+        ]
+        subprocess.run(cmd, check=True)
+        os.remove(temp_output)
+        return True
+    except Exception as e:
+        st.error(f"❌ Error during fade switch: {e}")
+        return False
 
-        if result == 0:
-            st.success("✅ Merged video created!")
+# UI
+st.sidebar.header("Select Feature")
+feature = st.sidebar.selectbox("Choose an action:", ["Cartoonify Video", "Combine 3 Videos", "Fade Switch Videos"])
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("🎥 Before Style")
-                st.video(merged_path)
+if feature == "Cartoonify Video":
+    st.subheader("🎨 Feature 1: Cartoonify Video")
+    uploaded = st.file_uploader("Upload a video", type=["mp4", "mov"])
+    if uploaded and st.button("Convert"):
+        input_path = save_uploaded_file(uploaded)
+        output_path = os.path.join(tempfile.gettempdir(), "cartoon_output.mp4")
+        if cartoonify_video(input_path, output_path):
+            st.success("✅ Cartoon effect applied!")
+            st.video(output_path)
 
-            try:
-                transform_func = get_transform_function(style_merge)
-                clip = VideoFileClip(merged_path)
-                styled_clip = clip.fl_image(transform_func)
+elif feature == "Combine 3 Videos":
+    st.subheader("🧱 Feature 2: Combine 3 Videos Side-by-Side")
+    files = st.file_uploader("Upload 3 videos", accept_multiple_files=True, type=["mp4", "mov"])
+    if len(files) == 3 and st.button("Combine"):
+        paths = [save_uploaded_file(f) for f in files]
+        output_path = os.path.join(tempfile.gettempdir(), "combined_output.mp4")
+        if combine_side_by_side(paths, output_path):
+            st.success("✅ Videos combined side-by-side!")
+            st.video(output_path)
 
-                styled_path = os.path.join(tmpdir, "styled_merged.mp4")
-                styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-                with col2:
-                    st.subheader("🧑‍🎨 After Style")
-                    with open(styled_path, "rb") as f:
-                        st.video(f.read())
-                        st.download_button("💾 Download Styled Video", f, "styled_merged.mp4", mime="video/mp4")
-            except Exception as e:
-                st.error(f"❌ Error applying style: {e}")
-        else:
-            st.error("❌ FFmpeg merge failed.")
-elif uploaded_files and len(uploaded_files) != 3:
-    st.warning("⚠️ Please upload exactly 3 vertical videos.")
-
-# ---------- Feature 3: Sequential Playback ----------
-st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially in One Landscape Frame")
-
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
-    "None",
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-], key="style_sequential")
-
-if uploaded_seq and len(uploaded_seq) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, f in enumerate(uploaded_seq):
-            p = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(p, "wb") as out:
-                out.write(f.read())
-            paths.append(p)
-
-        try:
-            transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
-            clips = []
-
-            for i in range(3):
-                main_clip = VideoFileClip(paths[i]).fl_image(transform_func).resize(height=1080)
-
-                freeze_1 = ImageClip(transform_func(VideoFileClip(paths[0]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((0, 0)).set_opacity(0.4 if i != 0 else 1)
-                freeze_2 = ImageClip(transform_func(VideoFileClip(paths[1]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((640, 0)).set_opacity(0.4 if i != 1 else 1)
-                freeze_3 = ImageClip(transform_func(VideoFileClip(paths[2]).get_frame(0))).resize(height=1080).set_duration(main_clip.duration).set_position((1280, 0)).set_opacity(0.4 if i != 2 else 1)
-
-                bg = ColorClip((1920, 1080), color=(0, 0, 0)).set_duration(main_clip.duration)
-                combo = CompositeVideoClip([
-                    bg, freeze_1, freeze_2, freeze_3
-                ])
-                clips.append(combo)
-
-            final = concatenate_videoclips(clips)
-            out_path = os.path.join(tmpdir, "sequential_output.mp4")
-            final.write_videofile(out_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-            st.video(out_path)
-            with open(out_path, "rb") as f:
-                st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_visible.mp4", mime="video/mp4")
-
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-elif uploaded_seq and len(uploaded_seq) != 3:
-    st.warning("⚠️ Please upload exactly 3 videos.")
+elif feature == "Fade Switch Videos":
+    st.subheader("🎞 Feature 3: Switch Between Videos with Fade")
+    files = st.file_uploader("Upload 3 videos", accept_multiple_files=True, type=["mp4", "mov"])
+    if len(files) == 3 and st.button("Create Sequence"):
+        paths = [save_uploaded_file(f) for f in files]
+        output_path = os.path.join(tempfile.gettempdir(), "fade_switch_output.mp4")
+        if fade_switch_videos(paths, output_path):
+            st.success("✅ Fade transition applied between videos!")
+            st.video(output_path)
