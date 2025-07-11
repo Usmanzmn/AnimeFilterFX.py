@@ -62,7 +62,7 @@ if uploaded_file:
         styled = clip.fl(progress_wrapper)
         output_path = os.path.join(tmpdir, "styled.mp4")
         styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
-        st.video(output_path)
+        st.video(output_path, use_container_width=True)
 
     end_time = time.time()
     st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
@@ -110,14 +110,13 @@ if uploaded_files and len(uploaded_files) == 3:
             comp.write_videofile(output_raw, codec="libx264", audio_codec="aac", verbose=False, logger=None)
             progress.progress(70)
 
-            # Watermark with FFmpeg
             status.text("💧 Adding watermark...")
             output_final = os.path.join(tmpdir, "sbs_final.mp4")
             watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
             cmd = f'ffmpeg -y -i "{output_raw}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{output_final}"'
             os.system(cmd)
 
-            st.video(output_final)
+            st.video(output_final, use_container_width=True)
             with open(output_final, "rb") as f:
                 st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
 
@@ -192,7 +191,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
             cmd = f'ffmpeg -y -i "{raw_output}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"'
             os.system(cmd)
 
-            st.video(final_output)
+            st.video(final_output, use_container_width=True)
             with open(final_output, "rb") as f:
                 st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
 
@@ -235,8 +234,4 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
         for i, img in enumerate(images):
             combined.paste(img, (i * 640, 0))
 
-        st.image(combined, caption="Combined Thumbnail (16:9)", use_column_width=True)
-        buffered = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-        combined.save(buffered, format="JPEG")
-        with open(buffered.name, "rb") as f:
-            st.download_button("💾 Download Combined Thumbnail", f.read(), file_name="thumbnail_combined.jpg", mime="image/jpeg")
+        st.image(combined, caption="📸 Combined Thumbnail", use_container_width=True)
