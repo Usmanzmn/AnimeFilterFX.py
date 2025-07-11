@@ -20,7 +20,6 @@ def get_transform_function(style_name):
         def pastel_style(frame):
             return np.clip(frame * 1.1 + 10, 0, 255).astype(np.uint8)
         return pastel_style
-
     elif style_name == "🎞️ Cinematic Warm Filter":
         def warm_style(frame):
             r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
@@ -31,10 +30,9 @@ def get_transform_function(style_name):
     else:
         return lambda frame: frame
 
-# ---------- Feature 1 ----------
+# ========== Feature 1 ==========
 st.markdown("---")
 st.header("🎨 Apply Style to Single Video")
-
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
 style = st.selectbox("🎨 Choose a Style", [
     "None",
@@ -46,7 +44,6 @@ if uploaded_file:
     start_time = time.time()
     progress = st.progress(0)
     status = st.empty()
-
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.mp4")
         with open(input_path, "wb") as f:
@@ -72,10 +69,9 @@ if uploaded_file:
     progress.empty()
     status.empty()
 
-# ---------- Feature 2 ----------
+# ========== Feature 2 ==========
 st.markdown("---")
 st.header("📱 Side by Side (3 Videos) with Watermark")
-
 uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
 style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
     "None",
@@ -87,7 +83,6 @@ if uploaded_files and len(uploaded_files) == 3:
     start_time = time.time()
     progress = st.progress(0)
     status = st.empty()
-
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = []
         for i, file in enumerate(uploaded_files):
@@ -132,14 +127,12 @@ if uploaded_files and len(uploaded_files) == 3:
 
         except Exception as e:
             st.error(f"❌ FFmpeg merge failed.\n\n{e}")
-
     progress.empty()
     status.empty()
 
-# ---------- Feature 3 ----------
+# ========== Feature 3 ==========
 st.markdown("---")
 st.header("🕒 Play 3 Videos Sequentially with Watermark and Slight Fade")
-
 uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
 style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
@@ -151,7 +144,6 @@ if uploaded_seq and len(uploaded_seq) == 3:
     start_time = time.time()
     progress = st.progress(0)
     status = st.empty()
-
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = []
         for i, f in enumerate(uploaded_seq):
@@ -190,7 +182,6 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
             final = concatenate_videoclips(clips)
             raw_output = os.path.join(tmpdir, "sequential_raw.mp4")
-
             status.text("📽️ Rendering final sequence...")
             final.write_videofile(raw_output, codec="libx264", audio_codec="aac", verbose=False, logger=None)
             progress.progress(80)
@@ -211,114 +202,41 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
         except Exception as e:
             st.error(f"❌ Error: {e}")
-
     progress.empty()
     status.empty()
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
 
-# ---------- Feature 4 ---------- 
-st.markdown("---") 
-st.header("🖼️ Final Goal Summary: Extract Thumbnails from 3 Videos")
+# ========== Feature 4 ==========
+st.markdown("---")
+st.header("📸 Combine All Thumbnails into One (16:9)")
 
 uploaded_thumb_files = st.file_uploader(
-    "📤 Upload 3 Videos (Cartoonified, Original, No-Audio)",
-    type=["mp4"],
-    accept_multiple_files=True,
-    key="thumbnail_uploads"
+    "📤 Upload 3 Videos (Cartoonified, Original, Styled)", 
+    type=["mp4"], 
+    accept_multiple_files=True, 
+    key="thumbnails"
 )
 
 if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
-    st.write("⏱️ Enter timestamp (in seconds) for each video below:")
-    col1, col2, col3 = st.columns(3)
+    st.info("📸 Extracting and combining thumbnails...")
+    with tempfile.TemporaryDirectory() as tmpdir:
+        images = []
+        for idx, file in enumerate(uploaded_thumb_files):
+            video_path = os.path.join(tmpdir, f"vid{idx}.mp4")
+            with open(video_path, "wb") as f:
+                f.write(file.read())
+            clip = VideoFileClip(video_path)
+            frame = clip.get_frame(clip.duration / 2)
+            img = Image.fromarray(frame).resize((640, 360))
+            images.append(img)
 
-    with col1:
-        time1 = st.number_input("Timestamp for Cartoonified Video", min_value=0.0, step=0.1, key="t1")
-    with col2:
-        time2 = st.number_input("Timestamp for Original Video", min_value=0.0, step=0.1, key="t2")
-    with col3:
-        time3 = st.number_input("Timestamp for No-Audio Video", min_value=0.0, step=0.1, key="t3")
+        combined = Image.new("RGB", (1920, 360))
+        for i, img in enumerate(images):
+            combined.paste(img, (i * 640, 0))
 
-    if st.button("📸 Generate All Thumbnails"):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            thumb_paths = []
-            times = [time1, time2, time3]
-
-            for i, uploaded in enumerate(uploaded_thumb_files):
-                input_path = os.path.join(tmpdir, f"thumb{i}.mp4")
-                with open(input_path, "wb") as f:
-                    f.write(uploaded.read())
-
-                clip = VideoFileClip(input_path)
-                timestamp = times[i]
-                if timestamp > clip.duration:
-                    st.warning(f"⚠️ Timestamp {timestamp}s exceeds duration of video {i+1}. Using middle frame instead.")
-                    timestamp = clip.duration / 2
-
-                frame = clip.get_frame(timestamp)
-                img = Image.fromarray(frame.astype(np.uint8))
-                img_path = os.path.join(tmpdir, f"thumbnail{i+1}.png")
-                img.save(img_path)
-                thumb_paths.append(img_path)
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.image(thumb_paths[0], caption="📸 Cartoonified Thumbnail")
-                with open(thumb_paths[0], "rb") as f:
-                    st.download_button("Download 1️⃣", f.read(), "cartoon_thumbnail.png", "image/png")
-            with col2:
-                st.image(thumb_paths[1], caption="📸 Original Thumbnail")
-                with open(thumb_paths[1], "rb") as f:
-                    st.download_button("Download 2️⃣", f.read(), "original_thumbnail.png", "image/png")
-            with col3:
-                st.image(thumb_paths[2], caption="📸 No-Audio Thumbnail")
-                with open(thumb_paths[2], "rb") as f:
-                    st.download_button("Download 3️⃣", f.read(), "noaudio_thumbnail.png", "image/png")
-
-elif uploaded_thumb_files and len(uploaded_thumb_files) != 3:
-    st.warning("⚠️ Please upload exactly 3 videos to generate thumbnails.")
-
-# ---------- Combine Thumbnails into 16:9 ----------
-
-from PIL import Image
-import streamlit as st
-
-st.subheader("📸 Combine All Thumbnails into One (16:9)")
-
-if st.button("🔗 Combine Thumbnails"):
-    if "thumb_paths" not in st.session_state:
-        st.warning("⚠️ Please generate the thumbnails first!")
-        st.stop()
-
-    try:
-        # Load all thumbnails as RGB images
-        images = [Image.open(path).convert("RGB") for path in st.session_state.thumb_paths]
-
-        # Resize thumbnails to same height
-        target_height = 360
-        resized = [
-            img.resize((int(img.width * target_height / img.height), target_height))
-            for img in images
-        ]
-
-        # Concatenate side-by-side
-        total_width = sum(img.width for img in resized)
-        combined = Image.new("RGB", (total_width, target_height))
-
-        x_offset = 0
-        for img in resized:
-            combined.paste(img, (x_offset, 0))
-            x_offset += img.width
-
-        # Resize to 16:9 (e.g., 1280x720)
-        combined_16_9 = combined.resize((1280, 720))
-
-        # Save or display
-        output_path = "combined_thumbnail.jpg"
-        combined_16_9.save(output_path)
-        st.image(output_path, caption="Combined Thumbnail (16:9)", use_column_width=True)
-        st.success("✅ Thumbnails combined successfully!")
-
-    except Exception as e:
-        st.error(f"❌ Error combining thumbnails: {e}")
-
+        st.image(combined, caption="Combined Thumbnail (16:9)", use_column_width=True)
+        buffered = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
+        combined.save(buffered, format="JPEG")
+        with open(buffered.name, "rb") as f:
+            st.download_button("💾 Download Combined Thumbnail", f.read(), file_name="thumbnail_combined.jpg", mime="image/jpeg")
