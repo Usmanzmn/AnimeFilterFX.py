@@ -217,8 +217,8 @@ if uploaded_seq and len(uploaded_seq) == 3:
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
 
-# ---------- Feature 4 ----------
-st.markdown("---")
+# ---------- Feature 4 ---------- 
+st.markdown("---") 
 st.header("🖼️ Final Goal Summary: Extract Thumbnails from 3 Videos")
 
 uploaded_thumb_files = st.file_uploader(
@@ -244,27 +244,36 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
             thumb_paths = []
             times = [time1, time2, time3]
 
-            for idx, file in enumerate(uploaded_thumb_files):
-                file_path = os.path.join(tmpdir, f"vid{idx}.mp4")
-                with open(file_path, "wb") as f:
-                    f.write(file.read())
+            for i, uploaded in enumerate(uploaded_thumb_files):
+                input_path = os.path.join(tmpdir, f"thumb{i}.mp4")
+                with open(input_path, "wb") as f:
+                    f.write(uploaded.read())
 
-                try:
-                    clip = VideoFileClip(file_path)
-                    frame = clip.get_frame(times[idx])
-                    img = Image.fromarray(frame)
+                clip = VideoFileClip(input_path)
+                timestamp = times[i]
+                if timestamp > clip.duration:
+                    st.warning(f"⚠️ Timestamp {timestamp}s exceeds duration of video {i+1}. Using middle frame instead.")
+                    timestamp = clip.duration / 2
 
-                    img_path = os.path.join(tmpdir, f"thumb{idx}.png")
-                    img.save(img_path)
-                    thumb_paths.append(img_path)
+                frame = clip.get_frame(timestamp)
+                img = Image.fromarray(frame.astype(np.uint8))
+                img_path = os.path.join(tmpdir, f"thumbnail{i+1}.png")
+                img.save(img_path)
+                thumb_paths.append(img_path)
 
-                except Exception as e:
-                    st.error(f"❌ Failed to extract thumbnail from video {idx+1}: {e}")
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.image(thumb_paths[0], caption="📸 Cartoonified Thumbnail")
+                with open(thumb_paths[0], "rb") as f:
+                    st.download_button("Download 1️⃣", f.read(), "cartoon_thumbnail.png", "image/png")
+            with col2:
+                st.image(thumb_paths[1], caption="📸 Original Thumbnail")
+                with open(thumb_paths[1], "rb") as f:
+                    st.download_button("Download 2️⃣", f.read(), "original_thumbnail.png", "image/png")
+            with col3:
+                st.image(thumb_paths[2], caption="📸 No-Audio Thumbnail")
+                with open(thumb_paths[2], "rb") as f:
+                    st.download_button("Download 3️⃣", f.read(), "noaudio_thumbnail.png", "image/png")
 
-            st.subheader("📥 Thumbnails:")
-            for i, path in enumerate(thumb_paths):
-                col = st.columns(3)[i]
-                with col:
-                    st.image(path, caption=f"Thumbnail {i+1}", use_column_width=True)
-                    with open(path, "rb") as f:
-                        st.download_button(f"💾 Download Thumbnail {i+1}", f.read(), file_name=f"thumbnail_{i+1}.png", mime="image/png")
+elif uploaded_thumb_files and len(uploaded_thumb_files) != 3:
+    st.warning("⚠️ Please upload exactly 3 videos to generate thumbnails.")
