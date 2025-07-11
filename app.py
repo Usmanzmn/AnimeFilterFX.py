@@ -38,7 +38,7 @@ style = st.selectbox("🎨 Choose a Style", [
 ], key="style_select")
 
 if uploaded_file:
-    if "styled_path" not in st.session_state:
+    if "styled_video" not in st.session_state:
         start_time = time.time()
         progress = st.progress(0)
         status = st.empty()
@@ -60,17 +60,19 @@ if uploaded_file:
 
             styled = clip.fl(progress_wrapper)
             output_path = os.path.join(tmpdir, "styled.mp4")
-            styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
-            st.session_state.styled_path = output_path
+            styled.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+
+            with open(output_path, "rb") as f:
+                st.session_state.styled_video = f.read()
 
         end_time = time.time()
         st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
         progress.empty()
         status.empty()
 
-    st.video(st.session_state.styled_path)
-    with open(st.session_state.styled_path, "rb") as f:
-        st.download_button("💾 Download Styled Video", f.read(), file_name="styled_video.mp4", mime="video/mp4")
+    if "styled_video" in st.session_state:
+        st.video(st.session_state.styled_video)
+        st.download_button("💾 Download Styled Video", st.session_state.styled_video, file_name="styled_video.mp4", mime="video/mp4")
 
 # ---------- Feature 2 ----------
 st.markdown("---")
