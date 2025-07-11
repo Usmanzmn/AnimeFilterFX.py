@@ -54,8 +54,9 @@ if uploaded_file:
     end_time = time.time()
     st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
-import shutil
 # ---------- Feature 2 ----------
+import subprocess  # ✅ Make sure this is at the top of your file
+
 st.markdown("---")
 st.header("📱 Side by Side (3 Videos) with Watermark")
 
@@ -100,30 +101,27 @@ if uploaded_files and len(uploaded_files) == 3:
                 progress.progress(70)
 
                 status.text("💧 Adding watermark...")
-                output_final_tmp = os.path.join(tmpdir, "sbs_final.mp4")
-
+                output_final = os.path.join(tmpdir, "sbs_final.mp4")
                 watermark = (
                     "drawtext=text='@USMIKASHMIRI':"
-                    "x=w-mod(t*240\\,w+tw):"
-                    "y=h-160:"
-                    "fontsize=40:"
-                    "fontcolor=white:"
+                    "x=w-mod(t*240\\,w+tw):y=h-160:"
+                    "fontsize=40:fontcolor=white@0.6:"
                     "shadowcolor=black:shadowx=2:shadowy=2"
                 )
-
                 cmd = [
                     "ffmpeg", "-y", "-i", output_raw,
                     "-vf", watermark,
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
-                    "-pix_fmt", "yuv420p", output_final_tmp
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
+                    output_final
                 ]
                 subprocess.run(cmd, check=True)
 
-                # ✅ Save to a persistent folder
-                os.makedirs("output", exist_ok=True)
-                output_final_path = os.path.join("output", "side_by_side_final.mp4")
-                shutil.copy(output_final_tmp, output_final_path)
-                st.session_state.sbs_final_path = output_final_path
+                # Copy output to a persistent location
+                final_save_path = os.path.join("outputs", "sbs_final.mp4")
+                os.makedirs("outputs", exist_ok=True)
+                shutil.copy(output_final, final_save_path)
+
+                st.session_state.sbs_final_path = final_save_path
 
                 end_time = time.time()
                 st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
@@ -135,10 +133,14 @@ if uploaded_files and len(uploaded_files) == 3:
         progress.empty()
         status.empty()
 
-    # ✅ Load from permanent path
+# Safely display video and download button
+if "sbs_final_path" in st.session_state and os.path.exists(st.session_state.sbs_final_path):
     st.video(st.session_state.sbs_final_path)
     with open(st.session_state.sbs_final_path, "rb") as f:
         st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
+else:
+    st.error("⚠️ Final video not available or was not saved.")
+
 
 # ---------- Feature 3 ----------
 st.markdown("---")
