@@ -280,35 +280,45 @@ elif uploaded_thumb_files and len(uploaded_thumb_files) != 3:
 
 # ---------- Combine Thumbnails into 16:9 ----------
 
-st.markdown("### 🧩 Combine All Thumbnails into One (16:9)")
+from PIL import Image
+import streamlit as st
 
-if st.button("🖼️ Combine Thumbnails"):
+st.subheader("📸 Combine All Thumbnails into One (16:9)")
+
+if st.button("🔗 Combine Thumbnails"):
+    if "thumb_paths" not in st.session_state:
+        st.warning("⚠️ Please generate the thumbnails first!")
+        st.stop()
+
     try:
-        # Load thumbnails from saved paths
-        imgs = [Image.open(path).convert("RGB") for path in thumb_paths]
+        # Load all thumbnails as RGB images
+        images = [Image.open(path).convert("RGB") for path in st.session_state.thumb_paths]
 
-        # Resize to same height
-        min_height = min(img.height for img in imgs)
-        resized_imgs = [img.resize((int(img.width * min_height / img.height), min_height)) for img in imgs]
+        # Resize thumbnails to same height
+        target_height = 360
+        resized = [
+            img.resize((int(img.width * target_height / img.height), target_height))
+            for img in images
+        ]
 
-        # Concatenate horizontally
-        total_width = sum(img.width for img in resized_imgs)
-        combined_img = Image.new("RGB", (total_width, min_height))
+        # Concatenate side-by-side
+        total_width = sum(img.width for img in resized)
+        combined = Image.new("RGB", (total_width, target_height))
+
         x_offset = 0
-        for img in resized_imgs:
-            combined_img.paste(img, (x_offset, 0))
+        for img in resized:
+            combined.paste(img, (x_offset, 0))
             x_offset += img.width
 
-        # Resize to fit 16:9 (e.g., 1280x720) while keeping content centered
-        final_size = (1280, 720)
-        combined_img = combined_img.resize(final_size, Image.LANCZOS)
+        # Resize to 16:9 (e.g., 1280x720)
+        combined_16_9 = combined.resize((1280, 720))
 
-        # Show and let user download
-        st.image(combined_img, caption="🖼️ Combined Thumbnail (16:9)", use_column_width=True)
-
-        buf = io.BytesIO()
-        combined_img.save(buf, format="PNG")
-        st.download_button("⬇️ Download Combined Thumbnail", buf.getvalue(), "combined_thumbnail.png", "image/png")
+        # Save or display
+        output_path = "combined_thumbnail.jpg"
+        combined_16_9.save(output_path)
+        st.image(output_path, caption="Combined Thumbnail (16:9)", use_column_width=True)
+        st.success("✅ Thumbnails combined successfully!")
 
     except Exception as e:
-        st.error(f"⚠️ Failed to combine thumbnails: {e}")
+        st.error(f"❌ Error combining thumbnails: {e}")
+
