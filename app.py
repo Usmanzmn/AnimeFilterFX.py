@@ -62,7 +62,7 @@ if uploaded_file:
         styled = clip.fl(progress_wrapper)
         output_path = os.path.join(tmpdir, "styled.mp4")
         styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
-        st.video(output_path)
+        st.video(output_path)  # FIXED
 
     end_time = time.time()
     st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
@@ -116,7 +116,7 @@ if uploaded_files and len(uploaded_files) == 3:
             cmd = f'ffmpeg -y -i "{output_raw}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{output_final}"'
             os.system(cmd)
 
-            st.video(output_final)
+            st.video(output_final)  # FIXED
             with open(output_final, "rb") as f:
                 st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
 
@@ -131,82 +131,66 @@ if uploaded_files and len(uploaded_files) == 3:
 
 # ========== Feature 3 ==========
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially with Watermark and Slight Fade")
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
+st.header("🪄 Combine Multiple Videos with Style and Watermark")
+uploaded_clips = st.file_uploader("📤 Upload Videos to Combine", type=["mp4"], accept_multiple_files=True, key="combine")
+style_combine = st.selectbox("🎨 Choose a Style for Combined Video", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
-], key="style_sequential")
+], key="style_combine")
 
-if uploaded_seq and len(uploaded_seq) == 3:
+if uploaded_clips and len(uploaded_clips) >= 2:
     start_time = time.time()
     progress = st.progress(0)
     status = st.empty()
     with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, f in enumerate(uploaded_seq):
-            p = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(p, "wb") as out:
-                out.write(f.read())
-            paths.append(p)
+        clip_paths = []
+        for i, file in enumerate(uploaded_clips):
+            path = os.path.join(tmpdir, f"clip{i}.mp4")
+            with open(path, "wb") as f:
+                f.write(file.read())
+            clip_paths.append(path)
 
         try:
-            transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
-            video_clips = []
-            total = 3
-            for i, p in enumerate(paths):
-                status.text(f"🖼️ Applying style to video {i+1} / {total}")
-                progress.progress(int(((i + 1) / total) * 30))
-                video_clips.append(VideoFileClip(p).fl_image(transform_func).resize(height=1080))
-
+            status.text("📦 Loading and styling clips...")
+            transform_func = get_transform_function(style_combine)
             clips = []
-            intro_clips = [clip.subclip(0, 1).set_position((i * 640, 0)) for i, clip in enumerate(video_clips)]
-            intro = CompositeVideoClip(intro_clips, size=(1920, 1080)).set_duration(1)
-            clips.append(intro)
+            total_clips = len(clip_paths)
 
-            for i in range(3):
-                dur = video_clips[i].duration
-                main = video_clips[i]
-                others = []
-                for j in range(3):
-                    if j == i:
-                        clip = main.set_position((j * 640, 0))
-                    else:
-                        paused = video_clips[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
-                        clip = paused
-                    others.append(clip)
-                composite = CompositeVideoClip(others, size=(1920, 1080)).set_duration(dur)
-                clips.append(composite)
+            for i, path in enumerate(clip_paths):
+                clip = VideoFileClip(path).fl_image(transform_func)
+                clips.append(clip)
+                progress.progress(int(((i + 1) / total_clips) * 50))
 
-            final = concatenate_videoclips(clips)
-            raw_output = os.path.join(tmpdir, "sequential_raw.mp4")
-            status.text("📽️ Rendering final sequence...")
-            final.write_videofile(raw_output, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-            progress.progress(80)
+            final_clip = concatenate_videoclips(clips, method="compose")
 
-            final_output = os.path.join(tmpdir, "sequential_final.mp4")
+            output_path_raw = os.path.join(tmpdir, "combined_raw.mp4")
+            status.text("💾 Rendering combined video...")
+            final_clip.write_videofile(output_path_raw, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+            progress.progress(75)
+
+            # Add watermark using ffmpeg
             status.text("💧 Adding watermark...")
-            watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
-            cmd = f'ffmpeg -y -i "{raw_output}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"'
-            os.system(cmd)
+            final_output = os.path.join(tmpdir, "combined_final.mp4")
+            watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*200\\,w+tw):y=h-140:fontsize=36:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
+            os.system(f'ffmpeg -y -i "{output_path_raw}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"')
 
-            st.video(final_output)
+            st.video(final_output)  # ✅ FIXED: removed use_container_width
             with open(final_output, "rb") as f:
-                st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
+                st.download_button("💾 Download Combined Video", f.read(), file_name="combined_video.mp4", mime="video/mp4")
 
             end_time = time.time()
             st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
             progress.progress(100)
 
         except Exception as e:
-            st.error(f"❌ Error: {e}")
+            st.error(f"❌ An error occurred while combining videos.\n\n{e}")
+
     progress.empty()
     status.empty()
-elif uploaded_seq and len(uploaded_seq) != 3:
-    st.warning("⚠️ Please upload exactly 3 videos.")
 
-# ========== Feature 4 (UNTOUCHED) ==========
+
+# ========== Feature 4  ==========
 st.markdown("---")
 st.header("📸 Combine All Thumbnails into One (16:9)")
 
