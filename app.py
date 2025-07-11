@@ -277,3 +277,38 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
 
 elif uploaded_thumb_files and len(uploaded_thumb_files) != 3:
     st.warning("⚠️ Please upload exactly 3 videos to generate thumbnails.")
+
+# ---------- Combine Thumbnails into 16:9 ----------
+
+st.markdown("### 🧩 Combine All Thumbnails into One (16:9)")
+
+if st.button("🖼️ Combine Thumbnails"):
+    try:
+        # Load thumbnails from saved paths
+        imgs = [Image.open(path).convert("RGB") for path in thumb_paths]
+
+        # Resize to same height
+        min_height = min(img.height for img in imgs)
+        resized_imgs = [img.resize((int(img.width * min_height / img.height), min_height)) for img in imgs]
+
+        # Concatenate horizontally
+        total_width = sum(img.width for img in resized_imgs)
+        combined_img = Image.new("RGB", (total_width, min_height))
+        x_offset = 0
+        for img in resized_imgs:
+            combined_img.paste(img, (x_offset, 0))
+            x_offset += img.width
+
+        # Resize to fit 16:9 (e.g., 1280x720) while keeping content centered
+        final_size = (1280, 720)
+        combined_img = combined_img.resize(final_size, Image.LANCZOS)
+
+        # Show and let user download
+        st.image(combined_img, caption="🖼️ Combined Thumbnail (16:9)", use_column_width=True)
+
+        buf = io.BytesIO()
+        combined_img.save(buf, format="PNG")
+        st.download_button("⬇️ Download Combined Thumbnail", buf.getvalue(), "combined_thumbnail.png", "image/png")
+
+    except Exception as e:
+        st.error(f"⚠️ Failed to combine thumbnails: {e}")
