@@ -206,7 +206,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
 
-# ========== Feature 4 ==========
+# ========== Feature 4 ========== 
 st.markdown("---")
 st.header("📸 Combine All Thumbnails into One (16:9)")
 
@@ -227,11 +227,17 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
                 f.write(file.read())
             clip = VideoFileClip(video_path)
             frame = clip.get_frame(clip.duration / 2)
-            img = Image.fromarray(frame).resize((640, 360))
+            img = Image.fromarray(frame).resize((426, 720))  # 1280 / 3 ≈ 426
             images.append(img)
 
-        combined = Image.new("RGB", (1920, 360))
+        # Create 1280x720 canvas (16:9)
+        combined = Image.new("RGB", (1280, 720))
         for i, img in enumerate(images):
-            combined.paste(img, (i * 640, 0))
+            combined.paste(img, (i * 426, 0))  # Paste side-by-side
 
-        st.image(combined, caption="📸 Combined Thumbnail", use_container_width=True)
+        st.image(combined, caption="🖼️ Combined Thumbnail", use_container_width=True)
+        combined_path = os.path.join(tmpdir, "combined_thumbnail.jpg")
+        combined.save(combined_path)
+
+        with open(combined_path, "rb") as f:
+            st.download_button("💾 Download Thumbnail", f.read(), file_name="thumbnail.jpg", mime="image/jpeg")
