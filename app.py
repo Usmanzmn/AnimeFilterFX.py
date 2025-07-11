@@ -206,7 +206,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
 
-# ========== Feature 4 ========== 
+# ========== Feature 4 ==========
 st.markdown("---")
 st.header("📸 Combine All Thumbnails into One (16:9)")
 
@@ -238,22 +238,20 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
                 video_path = os.path.join(tmpdir, f"vid{idx}.mp4")
                 with open(video_path, "wb") as f:
                     f.write(file.read())
-                clip = VideoFileClip(video_path)
+                frame = VideoFileClip(video_path).get_frame(ts)
+                images.append(Image.fromarray(frame))
 
-                # Ensure timestamp is within video duration
-                frame_time = min(ts, clip.duration - 0.1)
-                frame = clip.get_frame(frame_time)
-                img = Image.fromarray(frame).resize((426, 720))  # 1280/3 = 426
-                images.append(img)
+            widths, heights = zip(*(img.size for img in images))
+            total_width = sum(widths)
+            max_height = max(heights)
+            combined = Image.new("RGB", (total_width, max_height))
+            x_offset = 0
+            for img in images:
+                combined.paste(img, (x_offset, 0))
+                x_offset += img.width
 
-            # Create 1280x720 canvas (16:9)
-            combined = Image.new("RGB", (1280, 720))
-            for i, img in enumerate(images):
-                combined.paste(img, (i * 426, 0))  # Paste side-by-side
-
-            st.image(combined, caption="🖼️ Combined Thumbnail", use_container_width=True)
-            combined_path = os.path.join(tmpdir, "combined_thumbnail.jpg")
-            combined.save(combined_path)
-
-            with open(combined_path, "rb") as f:
-                st.download_button("💾 Download Thumbnail", f.read(), file_name="thumbnail.jpg", mime="image/jpeg")
+            output_path = os.path.join(tmpdir, "thumbnail.jpg")
+            combined.save(output_path)
+            st.image(output_path, caption="🖼️ Combined Thumbnail", use_column_width=True)
+            with open(output_path, "rb") as f:
+                st.download_button("💾 Download Thumbnail", f.read(), file_name="combined_thumbnail.jpg", mime="image/jpeg")
