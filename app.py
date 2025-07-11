@@ -142,7 +142,13 @@ if uploaded_files and len(uploaded_files) == 3:
 st.markdown("---")
 st.header("🕒 Play 3 Videos Sequentially with Watermark and Slight Fade")
 
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos (for sequential playback)", type=["mp4"], accept_multiple_files=True, key="sequential")
+uploaded_seq = st.file_uploader(
+    "📤 Upload 3 Videos (for sequential playback)", 
+    type=["mp4"], 
+    accept_multiple_files=True, 
+    key="sequential"
+)
+
 style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
@@ -150,7 +156,7 @@ style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
 ], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
-    if "sequential_path" not in st.session_state:
+    if "sequential_video" not in st.session_state:
         start_time = time.time()
         progress = st.progress(0)
         status = st.empty()
@@ -204,7 +210,9 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 cmd = f'ffmpeg -y -i "{raw_output}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"'
                 os.system(cmd)
 
-                st.session_state.sequential_path = final_output
+                # Read video bytes into memory and store in session_state
+                with open(final_output, "rb") as f:
+                    st.session_state.sequential_video = f.read()
 
                 end_time = time.time()
                 st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
@@ -216,9 +224,14 @@ if uploaded_seq and len(uploaded_seq) == 3:
         progress.empty()
         status.empty()
 
-    st.video(st.session_state.sequential_path)
-    with open(st.session_state.sequential_path, "rb") as f:
-        st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
+    if "sequential_video" in st.session_state:
+        st.video(st.session_state.sequential_video)
+        st.download_button(
+            "💾 Download Sequential Video", 
+            st.session_state.sequential_video, 
+            file_name="sequential_output.mp4", 
+            mime="video/mp4"
+        )
 
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
