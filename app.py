@@ -100,10 +100,24 @@ if uploaded_files and len(uploaded_files) == 3:
 
                 status.text("💧 Adding watermark...")
                 output_final = os.path.join(tmpdir, "sbs_final.mp4")
-                watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
-                cmd = f'ffmpeg -y -i "{output_raw}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{output_final}"'
-                os.system(cmd)
 
+                watermark = (
+                    "drawtext=text='@USMIKASHMIRI':"
+                    "x=w-mod(t*240\\,w+tw):"
+                    "y=h-160:"
+                    "fontsize=40:"
+                    "fontcolor=white:"
+                    "shadowcolor=black:shadowx=2:shadowy=2"
+                )
+
+                cmd = [
+                    "ffmpeg", "-y", "-i", output_raw,
+                    "-vf", watermark,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "22",
+                    "-pix_fmt", "yuv420p", output_final
+                ]
+
+                subprocess.run(cmd, check=True)
                 st.session_state.sbs_final_path = output_final
 
                 end_time = time.time()
@@ -111,7 +125,7 @@ if uploaded_files and len(uploaded_files) == 3:
                 progress.progress(100)
 
             except Exception as e:
-                st.error(f"❌ FFmpeg merge failed.\n\n{e}")
+                st.error(f"❌ Error occurred:\n\n{e}")
 
         progress.empty()
         status.empty()
@@ -119,6 +133,7 @@ if uploaded_files and len(uploaded_files) == 3:
     st.video(st.session_state.sbs_final_path)
     with open(st.session_state.sbs_final_path, "rb") as f:
         st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
+
 
 # ---------- Feature 3 ----------
 st.markdown("---")
