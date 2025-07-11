@@ -216,3 +216,55 @@ if uploaded_seq and len(uploaded_seq) == 3:
     status.empty()
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
+
+# ---------- Feature 4 ----------
+st.markdown("---")
+st.header("🖼️ Final Goal Summary: Extract Thumbnails from 3 Videos")
+
+uploaded_thumb_files = st.file_uploader(
+    "📤 Upload 3 Videos (Cartoonified, Original, No-Audio)",
+    type=["mp4"],
+    accept_multiple_files=True,
+    key="thumbnail_uploads"
+)
+
+if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
+    st.write("⏱️ Enter timestamp (in seconds) for each video below:")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        time1 = st.number_input("Timestamp for Cartoonified Video", min_value=0.0, step=0.1, key="t1")
+    with col2:
+        time2 = st.number_input("Timestamp for Original Video", min_value=0.0, step=0.1, key="t2")
+    with col3:
+        time3 = st.number_input("Timestamp for No-Audio Video", min_value=0.0, step=0.1, key="t3")
+
+    if st.button("📸 Generate All Thumbnails"):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            thumb_paths = []
+            times = [time1, time2, time3]
+
+            for idx, file in enumerate(uploaded_thumb_files):
+                file_path = os.path.join(tmpdir, f"vid{idx}.mp4")
+                with open(file_path, "wb") as f:
+                    f.write(file.read())
+
+                try:
+                    clip = VideoFileClip(file_path)
+                    frame = clip.get_frame(times[idx])
+                    img = Image.fromarray(frame)
+
+                    img_path = os.path.join(tmpdir, f"thumb{idx}.png")
+                    img.save(img_path)
+                    thumb_paths.append(img_path)
+
+                except Exception as e:
+                    st.error(f"❌ Failed to extract thumbnail from video {idx+1}: {e}")
+
+            st.subheader("📥 Thumbnails:")
+            for i, path in enumerate(thumb_paths):
+                col = st.columns(3)[i]
+                with col:
+                    st.image(path, caption=f"Thumbnail {i+1}", use_column_width=True)
+                    with open(path, "rb") as f:
+                        st.download_button(f"💾 Download Thumbnail {i+1}", f.read(), file_name=f"thumbnail_{i+1}.png", mime="image/png")
