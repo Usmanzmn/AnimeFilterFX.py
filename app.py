@@ -234,4 +234,22 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
         st.info("📸 Extracting and combining thumbnails...")
         with tempfile.TemporaryDirectory() as tmpdir:
             images = []
-            for idx, (
+                        for idx, file in enumerate(uploaded_thumb_files):
+                path = os.path.join(tmpdir, f"thumb{idx}.mp4")
+                with open(path, "wb") as f:
+                    f.write(file.read())
+                clip = VideoFileClip(path)
+                frame = clip.get_frame(timestamps[idx])
+                img = Image.fromarray(frame)
+                img = img.resize((640, 360))  # 16:9 thumbnail
+                images.append(img)
+
+            combined = Image.new("RGB", (1920, 360))
+            for i, img in enumerate(images):
+                combined.paste(img, (i * 640, 0))
+
+            st.image(combined, caption="Combined Thumbnail", use_column_width=True)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as out_thumb:
+                combined.save(out_thumb.name)
+                st.download_button("💾 Download Thumbnail", open(out_thumb.name, "rb").read(), file_name="combined_thumbnail.jpg", mime="image/jpeg")
+
