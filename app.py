@@ -216,3 +216,60 @@ if uploaded_seq and len(uploaded_seq) == 3:
     status.empty()
 elif uploaded_seq and len(uploaded_seq) != 3:
     st.warning("⚠️ Please upload exactly 3 videos.")
+
+# ========== Feature 4 ==========
+st.markdown("---")
+st.header("📸 Combine All Thumbnails into One (1280x720)")
+
+uploaded_thumb_files = st.file_uploader(
+    "📤 Upload 3 Videos (Cartoonified, Original, Styled)", 
+    type=["mp4"], 
+    accept_multiple_files=True, 
+    key="thumbnails"
+)
+
+if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
+    st.subheader("🕒 Select timestamps (in seconds) for each video")
+    timestamps = []
+    for i in range(3):
+        ts = st.number_input(
+            f"Timestamp for video {i+1} (in seconds)", 
+            min_value=0.0, 
+            value=1.0, 
+            step=0.5, 
+            key=f"timestamp_{i}"
+        )
+        timestamps.append(ts)
+
+    if st.button("🧩 Generate Combined Thumbnail"):
+        st.info("📸 Extracting and combining thumbnails...")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            images = []
+
+            for idx, file in enumerate(uploaded_thumb_files):
+                path = os.path.join(tmpdir, f"thumb{idx}.mp4")
+                with open(path, "wb") as f:
+                    f.write(file.read())
+                
+                clip = VideoFileClip(path)
+                frame = clip.get_frame(timestamps[idx])
+                img = Image.fromarray(frame)
+                img = img.resize((426, 720))  # Resize to 1/3 width of 1280, full height
+                images.append(img)
+                clip.close()
+
+            # Create a new 1280x720 image
+            combined = Image.new("RGB", (1280, 720))
+            for i, img in enumerate(images):
+                combined.paste(img, (i * 426, 0))  # Position side by side
+
+            st.image(combined, caption="Combined Thumbnail (1280x720)", use_container_width=True)
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as out_thumb:
+                combined.save(out_thumb.name)
+                st.download_button(
+                    "💾 Download Thumbnail", 
+                    open(out_thumb.name, "rb").read(), 
+                    file_name="combined_thumbnail_1280x720.jpg", 
+                    mime="image/jpeg"
+                )
