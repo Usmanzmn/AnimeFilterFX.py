@@ -38,41 +38,21 @@ style = st.selectbox("🎨 Choose a Style", [
 ], key="style_select")
 
 if uploaded_file:
-    if "styled_video" not in st.session_state:
-        start_time = time.time()
-        progress = st.progress(0)
-        status = st.empty()
+    start_time = time.time()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = os.path.join(tmpdir, "input.mp4")
+        with open(input_path, "wb") as f:
+            f.write(uploaded_file.read())
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            input_path = os.path.join(tmpdir, "input.mp4")
-            with open(input_path, "wb") as f:
-                f.write(uploaded_file.read())
+        clip = VideoFileClip(input_path)
+        transform_func = get_transform_function(style)
+        styled = clip.fl_image(transform_func)
+        output_path = os.path.join(tmpdir, "styled.mp4")
+        styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        st.video(output_path)
 
-            clip = VideoFileClip(input_path)
-            duration = clip.duration
-            transform_func = get_transform_function(style)
-
-            def progress_wrapper(get_frame, t):
-                percent = int((t / duration) * 100)
-                progress.progress(min(percent, 100))
-                status.text(f"⏳ Processing frame at {t:.2f}s / {duration:.2f}s")
-                return transform_func(get_frame(t))
-
-            styled = clip.fl(progress_wrapper)
-            output_path = os.path.join(tmpdir, "styled.mp4")
-            styled.write_videofile(output_path, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-
-            with open(output_path, "rb") as f:
-                st.session_state.styled_video = f.read()
-
-        end_time = time.time()
-        st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
-        progress.empty()
-        status.empty()
-
-    if "styled_video" in st.session_state:
-        st.video(st.session_state.styled_video)
-        st.download_button("💾 Download Styled Video", st.session_state.styled_video, file_name="styled_video.mp4", mime="video/mp4")
+    end_time = time.time()
+    st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
 
 # ---------- Feature 2 ----------
 st.markdown("---")
