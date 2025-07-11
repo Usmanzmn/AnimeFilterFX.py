@@ -218,26 +218,42 @@ uploaded_thumb_files = st.file_uploader(
 )
 
 if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
-    st.info("📸 Extracting and combining thumbnails...")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        images = []
-        for idx, file in enumerate(uploaded_thumb_files):
-            video_path = os.path.join(tmpdir, f"vid{idx}.mp4")
-            with open(video_path, "wb") as f:
-                f.write(file.read())
-            clip = VideoFileClip(video_path)
-            frame = clip.get_frame(clip.duration / 2)
-            img = Image.fromarray(frame).resize((426, 720))  # 1280 / 3 ≈ 426
-            images.append(img)
+    st.subheader("🕒 Select timestamps (in seconds) for each video")
+    timestamps = []
+    for i in range(3):
+        ts = st.number_input(
+            f"Timestamp for video {i+1} (in seconds)", 
+            min_value=0.0, 
+            value=1.0, 
+            step=0.5, 
+            key=f"timestamp_{i}"
+        )
+        timestamps.append(ts)
 
-        # Create 1280x720 canvas (16:9)
-        combined = Image.new("RGB", (1280, 720))
-        for i, img in enumerate(images):
-            combined.paste(img, (i * 426, 0))  # Paste side-by-side
+    if st.button("🧩 Generate Combined Thumbnail"):
+        st.info("📸 Extracting and combining thumbnails...")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            images = []
+            for idx, (file, ts) in enumerate(zip(uploaded_thumb_files, timestamps)):
+                video_path = os.path.join(tmpdir, f"vid{idx}.mp4")
+                with open(video_path, "wb") as f:
+                    f.write(file.read())
+                clip = VideoFileClip(video_path)
 
-        st.image(combined, caption="🖼️ Combined Thumbnail", use_container_width=True)
-        combined_path = os.path.join(tmpdir, "combined_thumbnail.jpg")
-        combined.save(combined_path)
+                # Ensure timestamp is within video duration
+                frame_time = min(ts, clip.duration - 0.1)
+                frame = clip.get_frame(frame_time)
+                img = Image.fromarray(frame).resize((426, 720))  # 1280/3 = 426
+                images.append(img)
 
-        with open(combined_path, "rb") as f:
-            st.download_button("💾 Download Thumbnail", f.read(), file_name="thumbnail.jpg", mime="image/jpeg")
+            # Create 1280x720 canvas (16:9)
+            combined = Image.new("RGB", (1280, 720))
+            for i, img in enumerate(images):
+                combined.paste(img, (i * 426, 0))  # Paste side-by-side
+
+            st.image(combined, caption="🖼️ Combined Thumbnail", use_container_width=True)
+            combined_path = os.path.join(tmpdir, "combined_thumbnail.jpg")
+            combined.save(combined_path)
+
+            with open(combined_path, "rb") as f:
+                st.download_button("💾 Download Thumbnail", f.read(), file_name="thumbnail.jpg", mime="image/jpeg")
