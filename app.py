@@ -31,20 +31,6 @@ def get_transform_function(style_name):
             return np.stack([r, g, b], axis=2).astype(np.uint8)
         return warm_style
 
-    elif style_name == "✨ Animated Toon Style":
-        def toon_style(frame):
-            import cv2
-            img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            edges = cv2.medianBlur(gray, 5)
-            edges = cv2.adaptiveThreshold(edges, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
-                                          cv2.THRESH_BINARY, 9, 9)
-            color = cv2.bilateralFilter(img, d=9, sigmaColor=300, sigmaSpace=300)
-            cartoon = cv2.bitwise_and(color, color, mask=edges)
-            cartoon = cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB)
-            return cartoon
-        return toon_style
-
     else:
         return lambda frame: frame
 
@@ -56,8 +42,7 @@ uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style
 style = st.selectbox("🎨 Choose a Style", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter",
-    "✨ Animated Toon Style"
+    "🎞️ Cinematic Warm Filter"
 ], key="style_select")
 
 if uploaded_file:
@@ -100,8 +85,7 @@ uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_m
 style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter",
-    "✨ Animated Toon Style"
+    "🎞️ Cinematic Warm Filter"
 ], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
@@ -150,8 +134,7 @@ uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_mul
 style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter",
-    "✨ Animated Toon Style"
+    "🎞️ Cinematic Warm Filter"
 ], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
