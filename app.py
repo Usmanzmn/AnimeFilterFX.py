@@ -139,21 +139,9 @@ if uploaded_files and len(uploaded_files) == 3:
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
-st.header("🕐 Play 3 Videos Sequentially with Watermark")
+st.header("🕐 Play 3 Videos Side-by-Side (One Plays at a Time) with Watermark")
 uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
 style_seq = st.selectbox("🎨 Style for Sequential", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sequential")
-
-# Helper function to resize and center-crop to 1280x720
-def resize_to_landscape(clip, target_width=1280, target_height=720):
-    # Resize while keeping aspect ratio
-    if clip.h > clip.w:
-        clip = clip.resize(height=target_height)
-    else:
-        clip = clip.resize(width=target_width)
-
-    # Center crop to exact 1280x720
-    clip = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=target_width, height=target_height)
-    return clip
 
 if uploaded_seq and len(uploaded_seq) == 3:
     start_time = time.time()
@@ -165,29 +153,63 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 f.write(file.read())
             paths.append(path)
 
-        # Select transform function based on style
+        # Load clips
         transform_func = get_transform_function(style_seq)
+        clips_raw = [VideoFileClip(p).fl_image(transform_func) for p in paths]
 
-        # Process clips, transform and resize to 1280x720
-        clips = [resize_to_landscape(VideoFileClip(p).fl_image(transform_func)) for p in paths]
+        # Resize all clips to same height (720) and equal width (1280 / 3 = ~426.66)
+        target_height = 720
+        target_width = 1280 // 3
 
-        # Concatenate all clips
-        final_clip = concatenate_videoclips(clips, method="compose")
+        clips_resized = [clip.resize(height=target_height).crop(x_center=clip.w / 2, width=target_width)
+                         for clip in clips_raw]
 
-        # Save raw video (without watermark)
+        # Get durations
+        durations = [clip.duration for clip in clips_resized]
+
+        # Create frozen image clips for all videos
+        frozen_clips = [clip.to_ImageClip(t=0).set_duration(max(durations)).resize((target_width, target_height))
+                        for clip in clips_resized]
+
+        # Construct final sequence
+        final_segments = []
+
+        for i in range(3):
+            # Set the active clip (i-th one plays)
+            active = clips_resized[i]
+
+            # Others frozen
+            frozen = [frozen_clips[j].set_duration(active.duration) for j in range(3)]
+
+            # Replace the i-th frozen with active one
+            frozen[i] = active
+
+            # Combine side-by-side
+            segment = CompositeVideoClip([
+                frozen[0].set_position(("left", "top")),
+                frozen[1].set_position((target_width, 0)),
+                frozen[2].set_position((target_width * 2, 0))
+            ], size=(1280, 720)).set_duration(active.duration)
+
+            final_segments.append(segment)
+
+        # Concatenate segments one after the other
+        final_video = concatenate_videoclips(final_segments, method="compose")
+
+        # Write raw output
         raw_output = os.path.join(tmpdir, "seq_raw.mp4")
-        final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+        final_video.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-        # Apply watermark (outputs to final_output)
+        # Apply watermark
         final_output = os.path.join(tmpdir, "seq_final.mp4")
         apply_watermark(raw_output, final_output)
 
         # Show and download
         st.video(final_output)
         with open(final_output, "rb") as f:
-            st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
-    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+            st.download_button("💾 Download Side-by-Side Sequential", f.read(), file_name="sequential_output.mp4")
 
+    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
