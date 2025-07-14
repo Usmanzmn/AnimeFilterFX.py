@@ -72,7 +72,8 @@ st.header("🎨 Apply Style to Single Video")
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
 style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")
 
-if uploaded_file:
+generate = st.button("🚀 Generate Styled Video")
+if uploaded_file and generate:
     start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input.mp4")
@@ -84,29 +85,36 @@ if uploaded_file:
         styled_path = os.path.join(tmpdir, "styled.mp4")
         styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
-        # Resize previews to fit display
-        clip_resized = clip.resize(height=360)
-        styled_resized = VideoFileClip(styled_path).resize(height=360)
-
+        # Resize previews for display
         preview_original = os.path.join(tmpdir, "original_preview.mp4")
         preview_styled = os.path.join(tmpdir, "styled_preview.mp4")
-        clip_resized.write_videofile(preview_original, codec="libx264", audio_codec="aac")
-        styled_resized.write_videofile(preview_styled, codec="libx264", audio_codec="aac")
+        clip.resize(height=360).write_videofile(preview_original, codec="libx264", audio_codec="aac")
+        VideoFileClip(styled_path).resize(height=360).write_videofile(preview_styled, codec="libx264", audio_codec="aac")
 
-        # Display in 2 columns
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("🔹 Original")
-            st.video(preview_original)
-            with open(input_path, "rb") as f:
-                st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
-        with col2:
-            st.subheader("🔸 Styled")
-            st.video(preview_styled)
-            with open(styled_path, "rb") as f:
-                st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
+        # Save everything to session
+        st.session_state["styled_output_path"] = styled_path
+        st.session_state["original_path"] = input_path
+        st.session_state["preview_original"] = preview_original
+        st.session_state["preview_styled"] = preview_styled
+        st.session_state["process_time"] = time.time() - start_time
 
-    st.success(f"✅ Done in {time.time() - start_time:.2f} sec")
+# Show previews and download buttons if processed
+if "styled_output_path" in st.session_state:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("🔹 Original")
+        st.video(st.session_state["preview_original"])
+        with open(st.session_state["original_path"], "rb") as f:
+            st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
+
+    with col2:
+        st.subheader("🔸 Styled")
+        st.video(st.session_state["preview_styled"])
+        with open(st.session_state["styled_output_path"], "rb") as f:
+            st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
+
+    st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
+
 
 # ========== FEATURE 2 ==========
 st.markdown("---")
