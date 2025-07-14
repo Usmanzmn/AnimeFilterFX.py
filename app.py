@@ -226,9 +226,9 @@ if st.session_state["sbs_final_output"]:
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
 
-# ========== FEATURE 3 (Sequential Playback: Raw + Styled + Watermark) ==========
+# ========== FEATURE 3 (Sequential Playback with 1-Second Triple Intro) ==========
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially with Freeze & Watermark")
+st.header("🕒 Play 3 Videos Sequentially with 1s Intro & Watermark")
 
 # Initialize session state
 st.session_state.setdefault("seq_raw_output", None)
@@ -268,60 +268,72 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
                 raw_clips, styled_clips = [], []
 
-                # Helper to create segments
-                def create_segment(segment_idx, durations, subclip_index):
+                # ========== SEGMENT 0: Intro - 1 second, all 3 play normally ==========
+                intro_duration = 1
+                raw_intro = CompositeVideoClip([
+                    video_raw[0].subclip(0, intro_duration).set_position((0, 0)),
+                    video_raw[1].subclip(0, intro_duration).set_position((width, 0)),
+                    video_raw[2].subclip(0, intro_duration).set_position((2 * width, 0))
+                ], size=(1280, height))
+
+                styled_intro = CompositeVideoClip([
+                    video_styled[0].subclip(0, intro_duration).set_position((0, 0)),
+                    video_styled[1].subclip(0, intro_duration).set_position((width, 0)),
+                    video_styled[2].subclip(0, intro_duration).set_position((2 * width, 0))
+                ], size=(1280, height))
+
+                raw_clips.append(raw_intro)
+                styled_clips.append(styled_intro)
+
+                # ========== SEGMENTS 1-3: One plays, others frozen & faded ==========
+                for i in range(3):
+                    # Full duration of the current main video
+                    dur = video_raw[i].duration
+
+                    # Raw parts
                     raw_parts = []
                     styled_parts = []
 
-                    for i in range(3):
-                        if i == segment_idx:
-                            raw = video_raw[i].subclip(0, durations[segment_idx])
-                            styled = video_styled[i].subclip(0, durations[segment_idx])
+                    for j in range(3):
+                        if j == i:
+                            # Play full
+                            raw_clip = video_raw[j]
+                            styled_clip = video_styled[j]
                         else:
-                            raw = video_raw[i].to_ImageClip(t=1).set_duration(durations[segment_idx]).set_opacity(0.4)
-                            styled = video_styled[i].to_ImageClip(t=1).set_duration(durations[segment_idx]).set_opacity(0.4)
+                            # Frozen + faded image
+                            raw_clip = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
+                            styled_clip = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
 
-                        raw_parts.append(raw.set_position((i * width, 0)))
-                        styled_parts.append(styled.set_position((i * width, 0)))
+                        raw_parts.append(raw_clip.set_position((j * width, 0)))
+                        styled_parts.append(styled_clip.set_position((j * width, 0)))
 
-                    raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(durations[segment_idx]))
-                    styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(durations[segment_idx]))
+                    raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur))
+                    styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur))
 
-                # Durations for segments
-                durations = [
-                    video_raw[0].duration,  # Segment 1 (raw1 plays)
-                    1,                      # Segment 2 (raw2 plays)
-                    1                       # Segment 3 (raw3 plays)
-                ]
-
-                # Create all segments
-                for seg in range(3):
-                    create_segment(seg, durations, seg)
-
-                # Concatenate all clips
+                # ========== CONCATENATE ==========
                 raw_sequence = concatenate_videoclips(raw_clips)
                 styled_sequence = concatenate_videoclips(styled_clips)
 
-                # Save raw output
+                # ========== EXPORT RAW ==========
                 raw_output_path = os.path.join(tmpdir, "seq_raw.mp4")
                 raw_sequence.write_videofile(raw_output_path, codec="libx264", audio_codec="aac")
 
-                # Save styled temp and apply watermark
+                # ========== EXPORT STYLED + WATERMARK ==========
                 styled_temp_path = os.path.join(tmpdir, "seq_styled_temp.mp4")
                 styled_sequence.write_videofile(styled_temp_path, codec="libx264", audio_codec="aac")
 
                 final_output_path = os.path.join(tmpdir, "seq_final.mp4")
                 apply_watermark(styled_temp_path, final_output_path)
 
-                # Save to session state
+                # ========== SAVE TO SESSION ==========
                 with open(raw_output_path, "rb") as f:
                     st.session_state["seq_raw_output"] = f.read()
                 with open(final_output_path, "rb") as f:
                     st.session_state["seq_final_output"] = f.read()
 
-        st.success("✅ Sequential videos generated with proper freeze + watermark!")
+        st.success("✅ Sequential videos generated with 1-second intro + full playback + watermark!")
 
-# ========== Display & Download ==========
+# ========== DISPLAY ==========
 if st.session_state["seq_raw_output"]:
     st.subheader("🎬 Raw Sequential Video (No Style, No Watermark)")
     st.video(st.session_state["seq_raw_output"])
@@ -331,6 +343,7 @@ if st.session_state["seq_final_output"]:
     st.subheader("🌟 Final Sequential Video (Styled + Watermark)")
     st.video(st.session_state["seq_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["seq_final_output"], file_name="sequential_styled.mp4")
+
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
