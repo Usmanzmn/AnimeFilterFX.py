@@ -8,6 +8,7 @@ from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideo
 from PIL import Image
 import numpy as np
 from io import BytesIO
+import cv2
 
 st.set_page_config(page_title="Video Effects App", layout="wide")
 st.title("🎬 AI Video Effects App")
@@ -17,20 +18,39 @@ def get_transform_function(style_name):
     if style_name == "🌸 Soft Pastel Anime-Like Style":
         def pastel_style(frame):
             r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
-            r = np.clip(r * 1.05 + 15, 0, 255)
-            g = np.clip(g * 1.05 + 15, 0, 255)
-            b = np.clip(b * 1.1 + 20, 0, 255)
-            return np.stack([r, g, b], axis=2).astype(np.uint8)
+            r = np.clip(r * 1.08 + 20, 0, 255)
+            g = np.clip(g * 1.06 + 15, 0, 255)
+            b = np.clip(b * 1.15 + 25, 0, 255)
+
+            blurred = (frame.astype(np.float32) * 0.4 +
+                       cv2.GaussianBlur(frame, (7, 7), 0).astype(np.float32) * 0.6)
+
+            tint = np.array([10, -5, 15], dtype=np.float32)
+            result = np.clip(blurred + tint, 0, 255).astype(np.uint8)
+            return result
         return pastel_style
 
     elif style_name == "🎞️ Cinematic Warm Filter":
         def warm_style(frame):
             r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
-            r = np.clip(r * 1.1 + 10, 0, 255)
-            g = np.clip(g * 1.05 + 5, 0, 255)
-            return np.stack([r, g, b], axis=2).astype(np.uint8)
-        return warm_style
+            r = np.clip(r * 1.15 + 15, 0, 255)
+            g = np.clip(g * 1.08 + 8, 0, 255)
+            b = np.clip(b * 0.95, 0, 255)
 
+            rows, cols = r.shape
+            Y, X = np.ogrid[:rows, :cols]
+            center = (rows / 2, cols / 2)
+            vignette = 1 - ((X - center[1])**2 + (Y - center[0])**2) / (1.5 * center[0] * center[1])
+            vignette = np.clip(vignette, 0.3, 1)
+            vignette = vignette[..., np.newaxis]
+
+            result = np.stack([r, g, b], axis=2).astype(np.float32)
+            result *= vignette
+
+            grain = np.random.normal(0, 3, frame.shape).astype(np.float32)
+            result = np.clip(result + grain, 0, 255).astype(np.uint8)
+            return result
+        return warm_style
     else:
         return lambda frame: frame
 
