@@ -130,9 +130,10 @@ if "styled_output_path" in st.session_state:
 
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
 
-# ========== FEATURE 2 ==========
+# ========== FEATURE 2 (1280x720, Fit 3 Videos) ==========
 st.markdown("---")
-st.header("📱 Side-by-Side (3 Videos) with Watermark")
+st.header("📱 Side-by-Side (1280x720, 3 Videos) with Watermark")
+
 uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
 style_sbs = st.selectbox("🎨 Style for Side-by-Side", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sbs")
 
@@ -146,11 +147,22 @@ if uploaded_files and len(uploaded_files) == 3:
             paths.append(path)
 
         transform_func = get_transform_function(style_sbs)
-        clips = [VideoFileClip(p).fl_image(transform_func).resize(height=720) for p in paths]
-        duration = min(c.duration for c in clips)
-        clips = [c.subclip(0, duration).set_position((i * 640, 0)) for i, c in enumerate(clips)]
+        
+        # Resize to fit 3 in 1280x720: width=426, height=720
+        target_width = 426
+        target_height = 720
 
-        side_by_side = CompositeVideoClip(clips, size=(1920, 720)).set_duration(duration)
+        clips = [VideoFileClip(p).fl_image(transform_func).resize((target_width, target_height)) for p in paths]
+        duration = min(c.duration for c in clips)
+        clips = [c.subclip(0, duration) for c in clips]
+
+        # Composite into one 1280x720 video
+        side_by_side = CompositeVideoClip([
+            clips[0].set_position((0, 0)),
+            clips[1].set_position((426, 0)),
+            clips[2].set_position((852, 0))
+        ], size=(1280, 720)).set_duration(duration)
+
         raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
         side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
@@ -159,8 +171,9 @@ if uploaded_files and len(uploaded_files) == 3:
 
         st.video(final_output)
         with open(final_output, "rb") as f:
-            st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4")
-    st.success("✅ Side-by-side video ready!")
+            st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side_1280x720.mp4")
+
+    st.success("✅ 3 videos combined into 1280x720 perfectly!")
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
