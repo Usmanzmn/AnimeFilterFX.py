@@ -51,7 +51,7 @@ def get_transform_function(style_name):
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
         f"drawtext=text='{text}':"
-        "x=w-mod(t*240\,w+tw):y=h-160:"
+        "x=w-mod(t*240\\,w+tw):y=h-160:"
         "fontsize=40:fontcolor=white@0.6:"
         "shadowcolor=black:shadowx=2:shadowy=2"
     )
@@ -61,7 +61,11 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
         output_path
     ]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        st.error("❌ Failed to apply watermark. Check FFmpeg or file permissions.")
+        st.text(f"Command failed: {e}")
 
 # ========== FEATURE 1 ==========
 st.markdown("---")
