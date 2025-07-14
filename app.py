@@ -130,11 +130,11 @@ if "styled_output_path" in st.session_state:
 
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
 
-# ========== FEATURE 2 (Updated: Separate Before & After Edit Views) ==========
+# ========== FEATURE 2 (Only Raw + Final Side-by-Side Videos) ==========
 st.markdown("---")
 st.header("📱 Side-by-Side (1280x720, 3 Videos) with Watermark")
 
-# Initialize state
+# State to store outputs
 if "sbs_raw_output" not in st.session_state:
     st.session_state["sbs_raw_output"] = None
 if "sbs_final_output" not in st.session_state:
@@ -161,36 +161,48 @@ if uploaded_files and len(uploaded_files) == 3:
                     paths.append(path)
 
                 transform_func = get_transform_function(style_sbs)
-
                 target_width = 426
                 target_height = 720
 
-                clips = [
+                # Apply style during raw generation
+                styled_clips = [
                     VideoFileClip(p).fl_image(transform_func).resize((target_width, target_height)) 
                     for p in paths
                 ]
-                duration = min(c.duration for c in clips)
-                clips = [c.subclip(0, duration) for c in clips]
+                duration = min(c.duration for c in styled_clips)
+                styled_clips = [c.subclip(0, duration) for c in styled_clips]
 
                 side_by_side = CompositeVideoClip([
-                    clips[0].set_position((0, 0)),
-                    clips[1].set_position((426, 0)),
-                    clips[2].set_position((852, 0))
+                    styled_clips[0].set_position((0, 0)),
+                    styled_clips[1].set_position((426, 0)),
+                    styled_clips[2].set_position((852, 0))
                 ], size=(1280, 720)).set_duration(duration)
 
-                # Save raw output (before watermark)
                 raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
                 side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-                # Apply watermark
                 final_output = os.path.join(tmpdir, "sbs_final.mp4")
                 apply_watermark(raw_output, final_output)
 
-                # Store both in session state
+                # Save both versions
                 with open(raw_output, "rb") as f:
                     st.session_state["sbs_raw_output"] = f.read()
                 with open(final_output, "rb") as f:
                     st.session_state["sbs_final_output"] = f.read()
+
+        st.success("✅ Video generated successfully!")
+
+# Show preview and download
+if st.session_state["sbs_raw_output"]:
+    st.markdown("### 🎬 Before Watermark (Styled Raw Video)")
+    st.video(st.session_state["sbs_raw_output"])
+    st.download_button("⬇️ Download Raw Video", st.session_state["sbs_raw_output"], file_name="raw_styled.mp4")
+
+if st.session_state["sbs_final_output"]:
+    st.markdown("### 🌟 Final Video (With Watermark)")
+    st.video(st.session_state["sbs_final_output"])
+    st.download_button("⬇️ Download Final Video", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
+
 
         st.success("✅ Video generated successfully!")
 
