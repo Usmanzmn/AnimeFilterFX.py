@@ -31,60 +31,61 @@ def get_transform_function(style_name):
             return np.stack([r, g, b], axis=2).astype(np.uint8)
         return warm_style
 
+    elif style_name == "🌈 Dreamy Pastel Glow":
+        def dreamy_style(frame):
+            r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
+            r = np.clip(r * 1.08 + 20, 0, 255)
+            g = np.clip(g * 1.02 + 10, 0, 255)
+            b = np.clip(b * 1.05 + 30, 0, 255)
+            blended = np.stack([r, g, b], axis=2).astype(np.uint8)
+            return (0.8 * frame + 0.2 * blended).astype(np.uint8)
+        return dreamy_style
+
     else:
         return lambda frame: frame
 
-# ========== FEATURE 1 ========== 
-st.markdown("---") 
+# ========== FEATURE 1 ==========
+st.markdown("---")
 st.header("🎨 Apply Style to Single Video (Before & After)")
 
-uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload") 
-style = st.selectbox("🎨 Choose a Style", [ 
-    "None", 
-    "🌸 Soft Pastel Anime-Like Style", 
-    "🎞️ Cinematic Warm Filter" 
+uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
+style = st.selectbox("🎨 Choose a Style", [
+    "None",
+    "🌸 Soft Pastel Anime-Like Style",
+    "🎞️ Cinematic Warm Filter",
+    "🌈 Dreamy Pastel Glow"
 ], key="style_select")
 
-if uploaded_file: 
-    start_time = time.time() 
-    with tempfile.TemporaryDirectory() as tmpdir: 
-        input_path = os.path.join(tmpdir, "input.mp4") 
-        with open(input_path, "wb") as f: 
+if uploaded_file:
+    start_time = time.time()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = os.path.join(tmpdir, "input.mp4")
+        with open(input_path, "wb") as f:
             f.write(uploaded_file.read())
 
-        # Load original video 
-        clip = VideoFileClip(input_path) 
+        clip = VideoFileClip(input_path)
         transform_func = get_transform_function(style)
-
-        # Apply style 
-        styled = clip.fl_image(transform_func) 
-        styled_path = os.path.join(tmpdir, "styled.mp4") 
+        styled = clip.fl_image(transform_func)
+        styled_path = os.path.join(tmpdir, "styled.mp4")
         styled.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
-        # Resize both videos 
-        clip_resized = clip.resize(height=480) 
+        clip_resized = clip.resize(height=480)
         styled_resized = VideoFileClip(styled_path).resize(height=480)
 
-        # Combine side-by-side 
-        combined = CompositeVideoClip( 
-            [clip_resized.set_position((0, 0)), 
-             styled_resized.set_position((clip_resized.w, 0))], 
-            size=(clip_resized.w + styled_resized.w, clip_resized.h) 
+        combined = CompositeVideoClip(
+            [clip_resized.set_position((0, 0)),
+             styled_resized.set_position((clip_resized.w, 0))],
+            size=(clip_resized.w + styled_resized.w, clip_resized.h)
         ).set_duration(min(clip_resized.duration, styled_resized.duration))
 
-        final_path = os.path.join(tmpdir, "before_after.mp4") 
+        final_path = os.path.join(tmpdir, "before_after.mp4")
         combined.write_videofile(final_path, codec="libx264", audio_codec="aac")
 
-        # Display side-by-side result 
         st.video(final_path)
-
-        # Optional: download button 
-        with open(final_path, "rb") as f: 
+        with open(final_path, "rb") as f:
             st.download_button("💾 Download Before & After", f.read(), file_name="before_after.mp4", mime="video/mp4")
 
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
-
-
 
 # ========== FEATURE 2 ==========
 st.markdown("---")
@@ -94,7 +95,8 @@ uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_m
 style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
+    "🎞️ Cinematic Warm Filter",
+    "🌈 Dreamy Pastel Glow"
 ], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
@@ -109,9 +111,9 @@ if uploaded_files and len(uploaded_files) == 3:
 
         transform_func = get_transform_function(style_sbs)
         clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
-
         min_duration = min([c.duration for c in clips])
         clips = [c.subclip(0, min_duration).set_position((i * 640, 0)) for i, c in enumerate(clips)]
+
         comp = CompositeVideoClip(clips, size=(1920, 1080)).set_duration(min_duration)
         raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
         comp.write_videofile(raw_output, codec="libx264", audio_codec="aac")
@@ -143,7 +145,8 @@ uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_mul
 style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
+    "🎞️ Cinematic Warm Filter",
+    "🌈 Dreamy Pastel Glow"
 ], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
@@ -212,7 +215,7 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
                 clip = VideoFileClip(path)
                 frame = clip.get_frame(timestamps[idx])
                 img = Image.fromarray(frame)
-                img = img.resize((426, 720))  # ~1/3 of 1280
+                img = img.resize((426, 720))
                 images.append(img)
                 clip.close()
 
