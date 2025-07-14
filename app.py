@@ -226,50 +226,105 @@ if st.session_state["sbs_final_output"]:
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
 
-# ========== FEATURE 3 ==========
+# ========== FEATURE 3 (Sequential Playback: Raw + Styled+Watermark) ==========
 st.markdown("---")
 st.header("🕒 Play 3 Videos Sequentially with Fade & Watermark")
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("🎨 Style for Sequential Video", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_seq")
+
+# Initialize session state
+if "seq_raw_output" not in st.session_state:
+    st.session_state["seq_raw_output"] = None
+if "seq_final_output" not in st.session_state:
+    st.session_state["seq_final_output"] = None
+
+uploaded_seq = st.file_uploader(
+    "📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential"
+)
+
+style_seq = st.selectbox(
+    "🎨 Style for Final Video",
+    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
+    key="style_seq"
+)
 
 if uploaded_seq and len(uploaded_seq) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, f in enumerate(uploaded_seq):
-            p = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(p, "wb") as out:
-                out.write(f.read())
-            paths.append(p)
+    if st.button("🚀 Generate Sequential Video"):
+        with st.spinner("Processing..."):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                paths = []
+                for i, f in enumerate(uploaded_seq):
+                    p = os.path.join(tmpdir, f"seq{i}.mp4")
+                    with open(p, "wb") as out:
+                        out.write(f.read())
+                    paths.append(p)
 
-        transform = get_transform_function(style_seq)
-        video_clips = [VideoFileClip(p).fl_image(transform).resize(height=720) for p in paths]
+                transform = get_transform_function(style_seq)
+                video_raw = [VideoFileClip(p).resize(height=720) for p in paths]
+                video_styled = [VideoFileClip(p).fl_image(transform).resize(height=720) for p in paths]
 
-        clips = []
-        for i in range(3):
-            dur = video_clips[i].duration
-            main = video_clips[i]
-            others = []
-            for j in range(3):
-                if j == i:
-                    clip = main.set_position((j * 640, 0))
-                else:
-                    still = video_clips[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
-                    clip = still
-                others.append(clip)
-            composite = CompositeVideoClip(others, size=(1920, 720)).set_duration(dur)
-            clips.append(composite)
+                # Build composite sequences
+                raw_clips = []
+                styled_clips = []
 
-        final = concatenate_videoclips(clips)
-        raw = os.path.join(tmpdir, "seq_raw.mp4")
-        final.write_videofile(raw, codec="libx264", audio_codec="aac")
+                for i in range(3):
+                    dur = video_raw[i].duration
+                    # Raw (unstyled)
+                    raw_clip_parts = []
+                    for j in range(3):
+                        if j == i:
+                            clip = video_raw[j].set_position((j * 640, 0))
+                        else:
+                            still = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
+                            clip = still
+                        raw_clip_parts.append(clip)
+                    raw_composite = CompositeVideoClip(raw_clip_parts, size=(1920, 720)).set_duration(dur)
+                    raw_clips.append(raw_composite)
 
-        final_output = os.path.join(tmpdir, "seq_final.mp4")
-        apply_watermark(raw, final_output)
+                    # Styled
+                    styled_clip_parts = []
+                    for j in range(3):
+                        if j == i:
+                            clip = video_styled[j].set_position((j * 640, 0))
+                        else:
+                            still = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
+                            clip = still
+                        styled_clip_parts.append(clip)
+                    styled_composite = CompositeVideoClip(styled_clip_parts, size=(1920, 720)).set_duration(dur)
+                    styled_clips.append(styled_composite)
 
-        st.video(final_output)
-        with open(final_output, "rb") as f:
-            st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
-    st.success("✅ Sequential video done!")
+                # Concatenate sequences
+                raw_sequence = concatenate_videoclips(raw_clips)
+                styled_sequence = concatenate_videoclips(styled_clips)
+
+                # Export raw (no watermark)
+                raw_output_path = os.path.join(tmpdir, "seq_raw.mp4")
+                raw_sequence.write_videofile(raw_output_path, codec="libx264", audio_codec="aac")
+
+                # Export styled with watermark
+                styled_temp_path = os.path.join(tmpdir, "seq_styled_temp.mp4")
+                styled_sequence.write_videofile(styled_temp_path, codec="libx264", audio_codec="aac")
+
+                final_output_path = os.path.join(tmpdir, "seq_final.mp4")
+                apply_watermark(styled_temp_path, final_output_path)
+
+                # Store outputs
+                with open(raw_output_path, "rb") as f:
+                    st.session_state["seq_raw_output"] = f.read()
+                with open(final_output_path, "rb") as f:
+                    st.session_state["seq_final_output"] = f.read()
+
+        st.success("✅ Sequential videos generated successfully!")
+
+# Show and download
+if st.session_state["seq_raw_output"]:
+    st.subheader("🎬 Raw Sequential Video (No Style, No Watermark)")
+    st.video(st.session_state["seq_raw_output"])
+    st.download_button("⬇️ Download Raw", st.session_state["seq_raw_output"], file_name="sequential_raw.mp4")
+
+if st.session_state["seq_final_output"]:
+    st.subheader("🌟 Final Sequential Video (Styled + Watermark)")
+    st.video(st.session_state["seq_final_output"])
+    st.download_button("⬇️ Download Final", st.session_state["seq_final_output"], file_name="sequential_styled.mp4")
+
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
