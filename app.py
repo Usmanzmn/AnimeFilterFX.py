@@ -137,79 +137,105 @@ if uploaded_files and len(uploaded_files) == 3:
             st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4")
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
-# ========== FEATURE 3 ==========
+# ---------- Feature 3 ----------
 st.markdown("---")
-st.header("🕐 Play 3 Videos Side-by-Side (One Plays at a Time) with Watermark")
-uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("🎨 Style for Sequential", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sequential")
+st.header("🕒 Play 3 Videos Sequentially with Watermark and Slight Fade")
+
+uploaded_seq = st.file_uploader(
+    "📤 Upload 3 Videos (for sequential playback)", 
+    type=["mp4"], 
+    accept_multiple_files=True, 
+    key="sequential"
+)
+
+style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
+    "None",
+    "🌸 Soft Pastel Anime-Like Style",
+    "🎞️ Cinematic Warm Filter"
+], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
-    start_time = time.time()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, file in enumerate(uploaded_seq):
-            path = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(path, "wb") as f:
-                f.write(file.read())
-            paths.append(path)
+    if "sequential_video" not in st.session_state:
+        start_time = time.time()
+        progress = st.progress(0)
+        status = st.empty()
 
-        # Load clips
-        transform_func = get_transform_function(style_seq)
-        clips_raw = [VideoFileClip(p).fl_image(transform_func) for p in paths]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = []
+            for i, f in enumerate(uploaded_seq):
+                p = os.path.join(tmpdir, f"seq{i}.mp4")
+                with open(p, "wb") as out:
+                    out.write(f.read())
+                paths.append(p)
 
-        # Resize all clips to same height (720) and equal width (1280 / 3 = ~426.66)
-        target_height = 720
-        target_width = 1280 // 3
+            try:
+                transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
+                video_clips = []
+                total = 3
+                for i, p in enumerate(paths):
+                    status.text(f"🖼️ Applying style to video {i+1} / {total}")
+                    progress.progress(int(((i + 1) / total) * 30))
+                    video_clips.append(VideoFileClip(p).fl_image(transform_func).resize(height=1080))
 
-        clips_resized = [clip.resize(height=target_height).crop(x_center=clip.w / 2, width=target_width)
-                         for clip in clips_raw]
+                clips = []
+                intro_clips = [clip.subclip(0, 1).set_position((i * 640, 0)) for i, clip in enumerate(video_clips)]
+                intro = CompositeVideoClip(intro_clips, size=(1920, 1080)).set_duration(1)
+                clips.append(intro)
 
-        # Get durations
-        durations = [clip.duration for clip in clips_resized]
+                for i in range(3):
+                    dur = video_clips[i].duration
+                    main = video_clips[i]
+                    others = []
+                    for j in range(3):
+                        if j == i:
+                            clip = main.set_position((j * 640, 0))
+                        else:
+                            paused = video_clips[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
+                            clip = paused
+                        others.append(clip)
+                    composite = CompositeVideoClip(others, size=(1920, 1080)).set_duration(dur)
+                    clips.append(composite)
 
-        # Create frozen image clips for all videos
-        frozen_clips = [clip.to_ImageClip(t=0).set_duration(max(durations)).resize((target_width, target_height))
-                        for clip in clips_resized]
+                final = concatenate_videoclips(clips)
+                raw_output = os.path.join(tmpdir, "sequential_raw.mp4")
 
-        # Construct final sequence
-        final_segments = []
+                status.text("📽️ Rendering final sequence...")
+                final.write_videofile(raw_output, codec="libx264", audio_codec="aac", verbose=False, logger=None)
+                progress.progress(80)
 
-        for i in range(3):
-            # Set the active clip (i-th one plays)
-            active = clips_resized[i]
+                final_output = os.path.join(tmpdir, "sequential_final.mp4")
+                status.text("💧 Adding watermark...")
+                watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
+                cmd = f'ffmpeg -y -i "{raw_output}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"'
+                os.system(cmd)
 
-            # Others frozen
-            frozen = [frozen_clips[j].set_duration(active.duration) for j in range(3)]
+                # Read video bytes into memory and store in session_state
+                with open(final_output, "rb") as f:
+                    st.session_state.sequential_video = f.read()
 
-            # Replace the i-th frozen with active one
-            frozen[i] = active
+                end_time = time.time()
+                st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
+                progress.progress(100)
 
-            # Combine side-by-side
-            segment = CompositeVideoClip([
-                frozen[0].set_position(("left", "top")),
-                frozen[1].set_position((target_width, 0)),
-                frozen[2].set_position((target_width * 2, 0))
-            ], size=(1280, 720)).set_duration(active.duration)
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
 
-            final_segments.append(segment)
+        progress.empty()
+        status.empty()
 
-        # Concatenate segments one after the other
-        final_video = concatenate_videoclips(final_segments, method="compose")
+    if "sequential_video" in st.session_state:
+        st.video(st.session_state.sequential_video)
+        st.download_button(
+            "💾 Download Sequential Video", 
+            st.session_state.sequential_video, 
+            file_name="sequential_output.mp4", 
+            mime="video/mp4"
+        )
 
-        # Write raw output
-        raw_output = os.path.join(tmpdir, "seq_raw.mp4")
-        final_video.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+elif uploaded_seq and len(uploaded_seq) != 3:
+    st.warning("⚠️ Please upload exactly 3 videos.")
 
-        # Apply watermark
-        final_output = os.path.join(tmpdir, "seq_final.mp4")
-        apply_watermark(raw_output, final_output)
-
-        # Show and download
-        st.video(final_output)
-        with open(final_output, "rb") as f:
-            st.download_button("💾 Download Side-by-Side Sequential", f.read(), file_name="sequential_output.mp4")
-
-    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+from io import BytesIO
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
