@@ -349,6 +349,7 @@ if st.session_state["seq_final_output"]:
     st.download_button("⬇️ Download Final", st.session_state["seq_final_output"], file_name="sequential_styled.mp4")
 
 
+
 # ========== FEATURE 4 ==========
 st.markdown("---")
 st.header("🖼️ Combine Thumbnails from 3 Videos (1280x720)")
