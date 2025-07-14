@@ -190,9 +190,10 @@ if uploaded_files and len(uploaded_files) == 3:
                 with open(final_output, "rb") as f:
                     st.session_state["sbs_final_output"] = f.read()
 
-        st.success("✅ Video generated successfully!")
+            # ✅ SUCCESS MESSAGE (after tempdir block)
+            st.success("✅ Video generated successfully!")
 
-# Show preview and download
+# Display and download both versions
 if st.session_state["sbs_raw_output"]:
     st.markdown("### 🎬 Before Watermark (Styled Raw Video)")
     st.video(st.session_state["sbs_raw_output"])
@@ -202,28 +203,6 @@ if st.session_state["sbs_final_output"]:
     st.markdown("### 🌟 Final Video (With Watermark)")
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final Video", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
-
-
-        st.success("✅ Video generated successfully!")
-
-# Display and download section
-if st.session_state["sbs_raw_output"]:
-    st.markdown("### 🔹 Before Edit (Raw Composite)")
-    st.video(st.session_state["sbs_raw_output"])
-    st.download_button("⬇️ Download Before Edit", st.session_state["sbs_raw_output"], file_name="before_edit.mp4")
-
-if st.session_state["sbs_final_output"]:
-    st.markdown("### 🔸 After Edit (With Watermark)")
-    st.video(st.session_state["sbs_final_output"])
-    st.download_button("⬇️ Download After Edit", st.session_state["sbs_final_output"], file_name="after_edit.mp4")
-
-
-    # Show preview and download only if generated
-    if st.session_state["sbs_final_output"]:
-        st.video(st.session_state["sbs_final_output"])
-        st.download_button("💾 Download Side-by-Side", st.session_state["sbs_final_output"], file_name="side_by_side_1280x720.mp4")
-
-    st.success("✅ 3 videos combined into 1280x720 perfectly!")
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
