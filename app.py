@@ -31,15 +31,19 @@ def get_transform_function(style_name):
             return np.stack([r, g, b], axis=2).astype(np.uint8)
         return warm_style
 
-    elif style_name == "🌈 Dreamy Pastel Glow":
-        def dreamy_style(frame):
-            r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
-            r = np.clip(r * 1.08 + 20, 0, 255)
-            g = np.clip(g * 1.02 + 10, 0, 255)
-            b = np.clip(b * 1.05 + 30, 0, 255)
-            blended = np.stack([r, g, b], axis=2).astype(np.uint8)
-            return (0.8 * frame + 0.2 * blended).astype(np.uint8)
-        return dreamy_style
+    elif style_name == "✨ Animated Toon Style":
+        def toon_style(frame):
+            import cv2
+            img = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            edges = cv2.medianBlur(gray, 5)
+            edges = cv2.adaptiveThreshold(edges, 255, cv2.ADAPTIVE_THRESH_MEAN_C, 
+                                          cv2.THRESH_BINARY, 9, 9)
+            color = cv2.bilateralFilter(img, d=9, sigmaColor=300, sigmaSpace=300)
+            cartoon = cv2.bitwise_and(color, color, mask=edges)
+            cartoon = cv2.cvtColor(cartoon, cv2.COLOR_BGR2RGB)
+            return cartoon
+        return toon_style
 
     else:
         return lambda frame: frame
@@ -53,7 +57,7 @@ style = st.selectbox("🎨 Choose a Style", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter",
-    "🌈 Dreamy Pastel Glow"
+    "✨ Animated Toon Style"
 ], key="style_select")
 
 if uploaded_file:
@@ -65,6 +69,7 @@ if uploaded_file:
 
         clip = VideoFileClip(input_path)
         transform_func = get_transform_function(style)
+
         styled = clip.fl_image(transform_func)
         styled_path = os.path.join(tmpdir, "styled.mp4")
         styled.write_videofile(styled_path, codec="libx264", audio_codec="aac")
@@ -96,7 +101,7 @@ style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter",
-    "🌈 Dreamy Pastel Glow"
+    "✨ Animated Toon Style"
 ], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
@@ -111,9 +116,9 @@ if uploaded_files and len(uploaded_files) == 3:
 
         transform_func = get_transform_function(style_sbs)
         clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
+
         min_duration = min([c.duration for c in clips])
         clips = [c.subclip(0, min_duration).set_position((i * 640, 0)) for i, c in enumerate(clips)]
-
         comp = CompositeVideoClip(clips, size=(1920, 1080)).set_duration(min_duration)
         raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
         comp.write_videofile(raw_output, codec="libx264", audio_codec="aac")
@@ -146,7 +151,7 @@ style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
     "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter",
-    "🌈 Dreamy Pastel Glow"
+    "✨ Animated Toon Style"
 ], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
