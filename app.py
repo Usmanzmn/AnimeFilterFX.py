@@ -72,37 +72,56 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
 # ========== FEATURE 1 ==========
 st.markdown("---")
 st.header("🎨 Apply Style to Single Video (Before & After)")
+
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
-style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")
+style = st.selectbox(
+    "🎨 Choose a Style",
+    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
+    key="style_select"
+)
 
 if uploaded_file:
     start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Save uploaded file
         input_path = os.path.join(tmpdir, "input.mp4")
         with open(input_path, "wb") as f:
             f.write(uploaded_file.read())
 
+        # Load original video
         clip = VideoFileClip(input_path)
+
+        # Apply style transformation
         styled_clip = clip.fl_image(get_transform_function(style))
+
+        # Save styled video
         styled_path = os.path.join(tmpdir, "styled.mp4")
         styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
+        # Resize both clips for preview
         clip_resized = clip.resize(height=480)
         styled_resized = VideoFileClip(styled_path).resize(height=480)
 
-        combined = CompositeVideoClip(
-            [clip_resized.set_position((0, 0)),
-             styled_resized.set_position((clip_resized.w, 0))],
-            size=(clip_resized.w + styled_resized.w, clip_resized.h)
-        ).set_duration(min(clip_resized.duration, styled_resized.duration))
+        # Save resized previews (optional)
+        original_preview_path = os.path.join(tmpdir, "original_preview.mp4")
+        styled_preview_path = os.path.join(tmpdir, "styled_preview.mp4")
+        clip_resized.write_videofile(original_preview_path, codec="libx264", audio_codec="aac")
+        styled_resized.write_videofile(styled_preview_path, codec="libx264", audio_codec="aac")
 
-        final_path = os.path.join(tmpdir, "before_after.mp4")
-        combined.write_videofile(final_path, codec="libx264", audio_codec="aac")
+        # Display original video
+        st.subheader("🔹 Original Video")
+        st.video(original_preview_path)
+        with open(input_path, "rb") as f:
+            st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
 
-        st.video(final_path)
-        with open(final_path, "rb") as f:
-            st.download_button("💾 Download Before & After", f.read(), file_name="before_after.mp4")
+        # Display styled video
+        st.subheader("🔸 Styled Video")
+        st.video(styled_preview_path)
+        with open(styled_path, "rb") as f:
+            st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
+
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+
 
 # ========== FEATURE 2 ==========
 st.markdown("---")
