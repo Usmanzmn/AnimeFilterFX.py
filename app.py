@@ -156,7 +156,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 paths.append(path)
 
             transform_func = get_transform_function(style_seq)
-            clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
+           clips = [resize_to_landscape(VideoFileClip(p).fl_image(transform_func)) for p in paths]
             final_clip = concatenate_videoclips(clips, method="compose")
 
             raw_output = os.path.join(tmpdir, "seq_raw.mp4")
