@@ -130,11 +130,11 @@ if "styled_output_path" in st.session_state:
 
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
 
-# ========== FEATURE 2 (Improved Side-by-Side with Proper Style Application) ==========
+# ========== FEATURE 2 (Side-by-Side: Raw Unstyled & Final Styled+Watermarked) ==========
 st.markdown("---")
 st.header("📱 Side-by-Side (1280x720, 3 Videos) with Watermark")
 
-# Initialize session state if not present
+# Initialize session state
 if "sbs_raw_output" not in st.session_state:
     st.session_state["sbs_raw_output"] = None
 if "sbs_final_output" not in st.session_state:
@@ -145,7 +145,7 @@ uploaded_files = st.file_uploader(
 )
 
 style_sbs = st.selectbox(
-    "🎨 Style for Side-by-Side",
+    "🎨 Style for Final Video",
     ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
     key="style_sbs"
 )
@@ -161,36 +161,51 @@ if uploaded_files and len(uploaded_files) == 3:
                         f.write(file.read())
                     paths.append(path)
 
-                # Apply selected style
+                target_size = (426, 720)
                 transform_func = get_transform_function(style_sbs)
-                target_size = (426, 720)  # Each video fits side-by-side in 1280x720
 
-                # Load, transform and resize clips
-                clips = []
+                # Load raw unstyled clips
+                raw_clips = []
+                styled_clips = []
                 min_duration = None
+
                 for path in paths:
-                    clip = VideoFileClip(path).resize(target_size).fl_image(transform_func)
-                    if min_duration is None or clip.duration < min_duration:
-                        min_duration = clip.duration
-                    clips.append(clip)
+                    clip_raw = VideoFileClip(path).resize(target_size)
+                    clip_styled = clip_raw.fl_image(transform_func)
 
-                # Ensure all clips are trimmed to same duration
-                clips = [clip.subclip(0, min_duration) for clip in clips]
+                    duration = clip_raw.duration
+                    if min_duration is None or duration < min_duration:
+                        min_duration = duration
 
-                # Arrange clips side-by-side
-                final_clip = CompositeVideoClip([
-                    clips[0].set_position((0, 0)),
-                    clips[1].set_position((426, 0)),
-                    clips[2].set_position((852, 0))
+                    raw_clips.append(clip_raw)
+                    styled_clips.append(clip_styled)
+
+                # Trim both sets to shortest clip duration
+                raw_clips = [c.subclip(0, min_duration) for c in raw_clips]
+                styled_clips = [c.subclip(0, min_duration) for c in styled_clips]
+
+                # Create raw (unstyled) side-by-side
+                raw_combined = CompositeVideoClip([
+                    raw_clips[0].set_position((0, 0)),
+                    raw_clips[1].set_position((426, 0)),
+                    raw_clips[2].set_position((852, 0))
                 ], size=(1280, 720)).set_duration(min_duration)
 
-                # Save raw output
                 raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
-                final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+                raw_combined.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-                # Apply watermark
+                # Create styled + watermark version
+                styled_combined = CompositeVideoClip([
+                    styled_clips[0].set_position((0, 0)),
+                    styled_clips[1].set_position((426, 0)),
+                    styled_clips[2].set_position((852, 0))
+                ], size=(1280, 720)).set_duration(min_duration)
+
+                styled_temp = os.path.join(tmpdir, "styled_temp.mp4")
+                styled_combined.write_videofile(styled_temp, codec="libx264", audio_codec="aac")
+
                 final_output = os.path.join(tmpdir, "sbs_final.mp4")
-                apply_watermark(raw_output, final_output)
+                apply_watermark(styled_temp, final_output)
 
                 # Save to session state
                 with open(raw_output, "rb") as f:
@@ -198,20 +213,18 @@ if uploaded_files and len(uploaded_files) == 3:
                 with open(final_output, "rb") as f:
                     st.session_state["sbs_final_output"] = f.read()
 
-            st.success("✅ Side-by-side video generated successfully!")
+            st.success("✅ Raw and Final videos generated successfully!")
 
-# Show results
+# Show raw and final output
 if st.session_state["sbs_raw_output"]:
-    st.subheader("🎬 Styled Raw Video (Before Watermark)")
+    st.subheader("🎬 Raw Video (No Style, No Watermark)")
     st.video(st.session_state["sbs_raw_output"])
-    st.download_button("⬇️ Download Raw", st.session_state["sbs_raw_output"], file_name="styled_raw.mp4")
+    st.download_button("⬇️ Download Raw", st.session_state["sbs_raw_output"], file_name="raw_unstyled.mp4")
 
 if st.session_state["sbs_final_output"]:
-    st.subheader("🌟 Final Video (With Watermark)")
+    st.subheader("🌟 Final Video (Styled + Watermark)")
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
-
-
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
