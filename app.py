@@ -140,36 +140,54 @@ if uploaded_files and len(uploaded_files) == 3:
 # ========== FEATURE 3 ==========
 st.markdown("---")
 st.header("🕐 Play 3 Videos Sequentially with Watermark")
-
 uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
 style_seq = st.selectbox("🎨 Style for Sequential", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sequential")
 
+# Helper function to resize and center-crop to 1280x720
+def resize_to_landscape(clip, target_width=1280, target_height=720):
+    # Resize while keeping aspect ratio
+    if clip.h > clip.w:
+        clip = clip.resize(height=target_height)
+    else:
+        clip = clip.resize(width=target_width)
+
+    # Center crop to exact 1280x720
+    clip = clip.crop(x_center=clip.w/2, y_center=clip.h/2, width=target_width, height=target_height)
+    return clip
+
 if uploaded_seq and len(uploaded_seq) == 3:
     start_time = time.time()
-    with st.spinner("Processing..."):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            paths = []
-            for i, file in enumerate(uploaded_seq):
-                path = os.path.join(tmpdir, f"seq{i}.mp4")
-                with open(path, "wb") as f:
-                    f.write(file.read())
-                paths.append(path)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        paths = []
+        for i, file in enumerate(uploaded_seq):
+            path = os.path.join(tmpdir, f"seq{i}.mp4")
+            with open(path, "wb") as f:
+                f.write(file.read())
+            paths.append(path)
 
-            transform_func = get_transform_function(style_seq)
-           clips = [resize_to_landscape(VideoFileClip(p).fl_image(transform_func)) for p in paths]
-            final_clip = concatenate_videoclips(clips, method="compose")
+        # Select transform function based on style
+        transform_func = get_transform_function(style_seq)
 
-            raw_output = os.path.join(tmpdir, "seq_raw.mp4")
-            final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+        # Process clips, transform and resize to 1280x720
+        clips = [resize_to_landscape(VideoFileClip(p).fl_image(transform_func)) for p in paths]
 
-            final_output = os.path.join(tmpdir, "seq_final.mp4")
-            apply_watermark(raw_output, final_output)
+        # Concatenate all clips
+        final_clip = concatenate_videoclips(clips, method="compose")
 
-            st.video(final_output)
-            with open(final_output, "rb") as f:
-                st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
+        # Save raw video (without watermark)
+        raw_output = os.path.join(tmpdir, "seq_raw.mp4")
+        final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
+        # Apply watermark (outputs to final_output)
+        final_output = os.path.join(tmpdir, "seq_final.mp4")
+        apply_watermark(raw_output, final_output)
+
+        # Show and download
+        st.video(final_output)
+        with open(final_output, "rb") as f:
+            st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
