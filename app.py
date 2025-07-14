@@ -34,55 +34,56 @@ def get_transform_function(style_name):
     else:
         return lambda frame: frame
 
-# ========== FEATURE 1 ==========
-st.markdown("---")
+# ========== FEATURE 1 ========== 
+st.markdown("---") 
 st.header("🎨 Apply Style to Single Video (Before & After)")
 
-uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
-style = st.selectbox("🎨 Choose a Style", [
-    "None",
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
+uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload") 
+style = st.selectbox("🎨 Choose a Style", [ 
+    "None", 
+    "🌸 Soft Pastel Anime-Like Style", 
+    "🎞️ Cinematic Warm Filter" 
 ], key="style_select")
 
-if uploaded_file:
-    start_time = time.time()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        input_path = os.path.join(tmpdir, "input.mp4")
-        with open(input_path, "wb") as f:
+if uploaded_file: 
+    start_time = time.time() 
+    with tempfile.TemporaryDirectory() as tmpdir: 
+        input_path = os.path.join(tmpdir, "input.mp4") 
+        with open(input_path, "wb") as f: 
             f.write(uploaded_file.read())
 
-        # Load original video
-        clip = VideoFileClip(input_path)
+        # Load original video 
+        clip = VideoFileClip(input_path) 
         transform_func = get_transform_function(style)
 
-        # Apply style
-        styled = clip.fl_image(transform_func)
-        styled_path = os.path.join(tmpdir, "styled.mp4")
+        # Apply style 
+        styled = clip.fl_image(transform_func) 
+        styled_path = os.path.join(tmpdir, "styled.mp4") 
         styled.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
-        # Resize both videos
-        clip_resized = clip.resize(height=480)
+        # Resize both videos 
+        clip_resized = clip.resize(height=480) 
         styled_resized = VideoFileClip(styled_path).resize(height=480)
 
-        # Combine side-by-side
-        combined = CompositeVideoClip(
-            [clip_resized.set_position((0, 0)),
-             styled_resized.set_position((clip_resized.w, 0))],
-            size=(clip_resized.w + styled_resized.w, clip_resized.h)
+        # Combine side-by-side 
+        combined = CompositeVideoClip( 
+            [clip_resized.set_position((0, 0)), 
+             styled_resized.set_position((clip_resized.w, 0))], 
+            size=(clip_resized.w + styled_resized.w, clip_resized.h) 
         ).set_duration(min(clip_resized.duration, styled_resized.duration))
 
-        final_path = os.path.join(tmpdir, "before_after.mp4")
+        final_path = os.path.join(tmpdir, "before_after.mp4") 
         combined.write_videofile(final_path, codec="libx264", audio_codec="aac")
 
-        # Display side-by-side result
+        # Display side-by-side result 
         st.video(final_path)
 
-        # Optional: download button
-        with open(final_path, "rb") as f:
+        # Optional: download button 
+        with open(final_path, "rb") as f: 
             st.download_button("💾 Download Before & After", f.read(), file_name="before_after.mp4", mime="video/mp4")
 
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+
 
 
 # ========== FEATURE 2 ==========
