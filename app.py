@@ -6,13 +6,12 @@ import time
 from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip
 from PIL import Image
 import numpy as np
-from io import BytesIO
 import cv2
 
-st.set_page_config(page_title="🎬 AI Video Effects App", layout="wide")
+st.set_page_config(page_title="🎬 AI Video Effects App", layout="centered")
 st.title("🎬 AI Video Effects App")
 
-# ---------- Utility: Style Functions ----------
+# ---------- Style Filter Functions ----------
 def get_transform_function(style_name):
     if style_name == "🌸 Soft Pastel Anime-Like Style":
         def pastel_style(frame):
@@ -45,16 +44,13 @@ def get_transform_function(style_name):
 
     return lambda frame: frame
 
-# ---------- Watermark Function (with automatic even-dimension scaling) ----------
+# ---------- Watermark ----------
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
-    # The 'scale' filter ensures the width and height are even
     watermark_filter = (
-        "scale=ceil(iw/2)*2:ceil(ih/2)*2,"  # Force dimensions to be even.
+        "scale=ceil(iw/2)*2:ceil(ih/2)*2,"
         f"drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':"
-        f"text='{text}':"
-        "x=w-mod(t*240\\,w+tw):y=h-160:"
-        "fontsize=40:fontcolor=white@0.6:"
-        "shadowcolor=black:shadowx=2:shadowy=2"
+        f"text='{text}':x=w-mod(t*240\\,w+tw):y=h-160:"
+        "fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
     )
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
@@ -65,72 +61,60 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        st.error("❌ FFmpeg watermarking failed. Check FFmpeg, font path, or file permissions.")
+        st.error("❌ FFmpeg watermarking failed.")
         st.code(e.stderr.decode(), language="bash")
         raise
 
 # ========== FEATURE 1 ==========
 st.markdown("---")
-st.header("🎨 Apply Style to Single Video (Before & After)")
+st.header("🎨 Apply Style to Single Video")
 
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
-style = st.selectbox(
-    "🎨 Choose a Style",
-    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
-    key="style_select"
-)
+style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")
 
 if uploaded_file:
     start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Save uploaded file
         input_path = os.path.join(tmpdir, "input.mp4")
         with open(input_path, "wb") as f:
             f.write(uploaded_file.read())
 
-        # Load original video
         clip = VideoFileClip(input_path)
-
-        # Apply style transformation
         styled_clip = clip.fl_image(get_transform_function(style))
-
-        # Save styled video
         styled_path = os.path.join(tmpdir, "styled.mp4")
         styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
-        # Resize both clips for preview
-        clip_resized = clip.resize(height=480)
-        styled_resized = VideoFileClip(styled_path).resize(height=480)
+        # Resize previews to fit display
+        clip_resized = clip.resize(height=360)
+        styled_resized = VideoFileClip(styled_path).resize(height=360)
 
-        # Save resized previews (optional)
-        original_preview_path = os.path.join(tmpdir, "original_preview.mp4")
-        styled_preview_path = os.path.join(tmpdir, "styled_preview.mp4")
-        clip_resized.write_videofile(original_preview_path, codec="libx264", audio_codec="aac")
-        styled_resized.write_videofile(styled_preview_path, codec="libx264", audio_codec="aac")
+        preview_original = os.path.join(tmpdir, "original_preview.mp4")
+        preview_styled = os.path.join(tmpdir, "styled_preview.mp4")
+        clip_resized.write_videofile(preview_original, codec="libx264", audio_codec="aac")
+        styled_resized.write_videofile(preview_styled, codec="libx264", audio_codec="aac")
 
-        # Display original video
-        st.subheader("🔹 Original Video")
-        st.video(original_preview_path)
-        with open(input_path, "rb") as f:
-            st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
+        # Display in 2 columns
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("🔹 Original")
+            st.video(preview_original)
+            with open(input_path, "rb") as f:
+                st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
+        with col2:
+            st.subheader("🔸 Styled")
+            st.video(preview_styled)
+            with open(styled_path, "rb") as f:
+                st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
 
-        # Display styled video
-        st.subheader("🔸 Styled Video")
-        st.video(styled_preview_path)
-        with open(styled_path, "rb") as f:
-            st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
-
-    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
-
+    st.success(f"✅ Done in {time.time() - start_time:.2f} sec")
 
 # ========== FEATURE 2 ==========
 st.markdown("---")
-st.header("📱 Side by Side (3 Videos) with Watermark")
+st.header("📱 Side-by-Side (3 Videos) with Watermark")
 uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
 style_sbs = st.selectbox("🎨 Style for Side-by-Side", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
-    start_time = time.time()
     with tempfile.TemporaryDirectory() as tmpdir:
         paths = []
         for i, file in enumerate(uploaded_files):
@@ -140,11 +124,11 @@ if uploaded_files and len(uploaded_files) == 3:
             paths.append(path)
 
         transform_func = get_transform_function(style_sbs)
-        clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
+        clips = [VideoFileClip(p).fl_image(transform_func).resize(height=720) for p in paths]
         duration = min(c.duration for c in clips)
         clips = [c.subclip(0, duration).set_position((i * 640, 0)) for i, c in enumerate(clips)]
 
-        side_by_side = CompositeVideoClip(clips, size=(1920, 1080)).set_duration(duration)
+        side_by_side = CompositeVideoClip(clips, size=(1920, 720)).set_duration(duration)
         raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
         side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
@@ -154,107 +138,52 @@ if uploaded_files and len(uploaded_files) == 3:
         st.video(final_output)
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4")
-    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
+    st.success("✅ Side-by-side video ready!")
 
-# ---------- Feature 3 ----------
+# ========== FEATURE 3 ==========
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially with Watermark and Slight Fade")
-
-uploaded_seq = st.file_uploader(
-    "📤 Upload 3 Videos (for sequential playback)", 
-    type=["mp4"], 
-    accept_multiple_files=True, 
-    key="sequential"
-)
-
-style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
-    "None",
-    "🌸 Soft Pastel Anime-Like Style",
-    "🎞️ Cinematic Warm Filter"
-], key="style_sequential")
+st.header("🕒 Play 3 Videos Sequentially with Fade & Watermark")
+uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
+style_seq = st.selectbox("🎨 Style for Sequential Video", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_seq")
 
 if uploaded_seq and len(uploaded_seq) == 3:
-    if "sequential_video" not in st.session_state:
-        start_time = time.time()
-        progress = st.progress(0)
-        status = st.empty()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        paths = []
+        for i, f in enumerate(uploaded_seq):
+            p = os.path.join(tmpdir, f"seq{i}.mp4")
+            with open(p, "wb") as out:
+                out.write(f.read())
+            paths.append(p)
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            paths = []
-            for i, f in enumerate(uploaded_seq):
-                p = os.path.join(tmpdir, f"seq{i}.mp4")
-                with open(p, "wb") as out:
-                    out.write(f.read())
-                paths.append(p)
+        transform = get_transform_function(style_seq)
+        video_clips = [VideoFileClip(p).fl_image(transform).resize(height=720) for p in paths]
 
-            try:
-                transform_func = get_transform_function(style_seq) if style_seq != "None" else lambda x: x
-                video_clips = []
-                total = 3
-                for i, p in enumerate(paths):
-                    status.text(f"🖼️ Applying style to video {i+1} / {total}")
-                    progress.progress(int(((i + 1) / total) * 30))
-                    video_clips.append(VideoFileClip(p).fl_image(transform_func).resize(height=1080))
+        clips = []
+        for i in range(3):
+            dur = video_clips[i].duration
+            main = video_clips[i]
+            others = []
+            for j in range(3):
+                if j == i:
+                    clip = main.set_position((j * 640, 0))
+                else:
+                    still = video_clips[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
+                    clip = still
+                others.append(clip)
+            composite = CompositeVideoClip(others, size=(1920, 720)).set_duration(dur)
+            clips.append(composite)
 
-                clips = []
-                intro_clips = [clip.subclip(0, 1).set_position((i * 640, 0)) for i, clip in enumerate(video_clips)]
-                intro = CompositeVideoClip(intro_clips, size=(1920, 1080)).set_duration(1)
-                clips.append(intro)
+        final = concatenate_videoclips(clips)
+        raw = os.path.join(tmpdir, "seq_raw.mp4")
+        final.write_videofile(raw, codec="libx264", audio_codec="aac")
 
-                for i in range(3):
-                    dur = video_clips[i].duration
-                    main = video_clips[i]
-                    others = []
-                    for j in range(3):
-                        if j == i:
-                            clip = main.set_position((j * 640, 0))
-                        else:
-                            paused = video_clips[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
-                            clip = paused
-                        others.append(clip)
-                    composite = CompositeVideoClip(others, size=(1920, 1080)).set_duration(dur)
-                    clips.append(composite)
+        final_output = os.path.join(tmpdir, "seq_final.mp4")
+        apply_watermark(raw, final_output)
 
-                final = concatenate_videoclips(clips)
-                raw_output = os.path.join(tmpdir, "sequential_raw.mp4")
-
-                status.text("📽️ Rendering final sequence...")
-                final.write_videofile(raw_output, codec="libx264", audio_codec="aac", verbose=False, logger=None)
-                progress.progress(80)
-
-                final_output = os.path.join(tmpdir, "sequential_final.mp4")
-                status.text("💧 Adding watermark...")
-                watermark = "drawtext=text='@USMIKASHMIRI':x=w-mod(t*240\\,w+tw):y=h-160:fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
-                cmd = f'ffmpeg -y -i "{raw_output}" -vf "{watermark}" -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p "{final_output}"'
-                os.system(cmd)
-
-                # Read video bytes into memory and store in session_state
-                with open(final_output, "rb") as f:
-                    st.session_state.sequential_video = f.read()
-
-                end_time = time.time()
-                st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
-                progress.progress(100)
-
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-
-        progress.empty()
-        status.empty()
-
-    if "sequential_video" in st.session_state:
-        st.video(st.session_state.sequential_video)
-        st.download_button(
-            "💾 Download Sequential Video", 
-            st.session_state.sequential_video, 
-            file_name="sequential_output.mp4", 
-            mime="video/mp4"
-        )
-
-elif uploaded_seq and len(uploaded_seq) != 3:
-    st.warning("⚠️ Please upload exactly 3 videos.")
-
-from io import BytesIO
+        st.video(final_output)
+        with open(final_output, "rb") as f:
+            st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
+    st.success("✅ Sequential video done!")
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
