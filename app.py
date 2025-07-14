@@ -45,14 +45,16 @@ def get_transform_function(style_name):
 
     return lambda frame: frame
 
-# ---------- Watermark Function with Fix ----------
+# ---------- Watermark Function (with automatic even-dimension scaling) ----------
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
+    # The 'scale' filter ensures the width and height are even
     watermark_filter = (
-        f"drawtext=text='{text}':"
-        "x=w-mod(t*240\,w+tw):y=h-160:"
+        "scale=ceil(iw/2)*2:ceil(ih/2)*2,"  # Force dimensions to be even.
+        f"drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':"
+        f"text='{text}':"
+        "x=w-mod(t*240\\,w+tw):y=h-160:"
         "fontsize=40:fontcolor=white@0.6:"
-        "shadowcolor=black:shadowx=2:shadowy=2:"
-        "fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        "shadowcolor=black:shadowx=2:shadowy=2"
     )
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
@@ -63,7 +65,7 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     try:
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
-        st.error("❌ FFmpeg watermarking failed. See details below:")
+        st.error("❌ FFmpeg watermarking failed. Check FFmpeg, font path, or file permissions.")
         st.code(e.stderr.decode(), language="bash")
         raise
 
@@ -133,6 +135,7 @@ if uploaded_files and len(uploaded_files) == 3:
         st.video(final_output)
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4")
+    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
@@ -153,7 +156,6 @@ if uploaded_seq and len(uploaded_seq) == 3:
         transform_func = get_transform_function(style_seq)
         clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
         final_clip = concatenate_videoclips(clips, method="compose")
-
         raw_output = os.path.join(tmpdir, "seq_raw.mp4")
         final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
@@ -163,6 +165,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
         st.video(final_output)
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
+    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
@@ -172,7 +175,6 @@ uploaded_thumb_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], ac
 if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
     st.subheader("⏱️ Select timestamps (in seconds) for each video")
     timestamps = [st.number_input(f"Timestamp for video {i+1}", min_value=0.0, value=1.0, step=0.5, key=f"ts_{i}") for i in range(3)]
-
     if st.button("🧩 Generate Combined Thumbnail"):
         with tempfile.TemporaryDirectory() as tmpdir:
             images = []
@@ -185,11 +187,9 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
                 img = Image.fromarray(frame).resize((426, 720))
                 images.append(img)
                 clip.close()
-
             combined = Image.new("RGB", (1280, 720))
             for i, img in enumerate(images):
                 combined.paste(img, (i * 426, 0))
-
             buffer = BytesIO()
             combined.save(buffer, format="JPEG")
             st.image(buffer.getvalue(), caption="Combined Thumbnail (1280x720)", use_container_width=True)
