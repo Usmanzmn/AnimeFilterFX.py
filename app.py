@@ -7,15 +7,15 @@ import time
 from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip
 from PIL import Image
 import numpy as np
+from io import BytesIO
 
 st.set_page_config(page_title="Video Effects App", layout="wide")
-st.title("\U0001F3AC AI Video Effects App")
+st.title("🎬 AI Video Effects App")
 
 # ---------- Helper: Style Functions ----------
 def get_transform_function(style_name):
-    if style_name == "\U0001F338 Soft Pastel Anime-Like Style":
+    if style_name == "🌸 Soft Pastel Anime-Like Style":
         def pastel_style(frame):
-            # Apply a simple pastel filter effect
             r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
             r = np.clip(r * 1.05 + 15, 0, 255)
             g = np.clip(g * 1.05 + 15, 0, 255)
@@ -30,17 +30,18 @@ def get_transform_function(style_name):
             g = np.clip(g * 1.05 + 5, 0, 255)
             return np.stack([r, g, b], axis=2).astype(np.uint8)
         return warm_style
+
     else:
         return lambda frame: frame
 
-# ---------- Feature 1 ----------
+# ========== FEATURE 1 ==========
 st.markdown("---")
-st.header("\U0001F3A8 Apply Style to Single Video")
+st.header("🎨 Apply Style to Single Video")
 
-uploaded_file = st.file_uploader("\U0001F4E4 Upload a Video", type=["mp4"], key="style_upload")
-style = st.selectbox("\U0001F3A8 Choose a Style", [
+uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
+style = st.selectbox("🎨 Choose a Style", [
     "None",
-    "\U0001F338 Soft Pastel Anime-Like Style",
+    "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
 ], key="style_select")
 
@@ -58,17 +59,16 @@ if uploaded_file:
         styled.write_videofile(output_path, codec="libx264", audio_codec="aac")
         st.video(output_path)
 
-    end_time = time.time()
-    st.success(f"✅ Completed in {end_time - start_time:.2f} seconds")
+    st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
-# ---------- Feature 2 ----------
+# ========== FEATURE 2 ==========
 st.markdown("---")
-st.header("\U0001F4F1 Side by Side (3 Videos) with Watermark")
+st.header("📱 Side by Side (3 Videos) with Watermark")
 
-uploaded_files = st.file_uploader("\U0001F4E4 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
-style_sbs = st.selectbox("\U0001F3A8 Apply Style to Side-by-Side", [
+uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
+style_sbs = st.selectbox("🎨 Apply Style to Side-by-Side", [
     "None",
-    "\U0001F338 Soft Pastel Anime-Like Style",
+    "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
 ], key="style_sbs")
 
@@ -83,10 +83,7 @@ if uploaded_files and len(uploaded_files) == 3:
             paths.append(path)
 
         transform_func = get_transform_function(style_sbs)
-        clips = []
-        for i, p in enumerate(paths):
-            clip = VideoFileClip(p).fl_image(transform_func).resize(height=1080)
-            clips.append(clip)
+        clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
 
         min_duration = min([c.duration for c in clips])
         clips = [c.subclip(0, min_duration).set_position((i * 640, 0)) for i, c in enumerate(clips)]
@@ -113,14 +110,14 @@ if uploaded_files and len(uploaded_files) == 3:
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side.mp4", mime="video/mp4")
 
-# ---------- Feature 3 ----------
+# ========== FEATURE 3 ==========
 st.markdown("---")
-st.header("\U0001F551 Play 3 Videos Sequentially with Watermark and Slight Fade")
+st.header("🕐 Play 3 Videos Sequentially with Watermark")
 
-uploaded_seq = st.file_uploader("\U0001F4E4 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
-style_seq = st.selectbox("\U0001F3A8 Apply Style to Sequential Video", [
+uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
+style_seq = st.selectbox("🎨 Apply Style to Sequential Video", [
     "None",
-    "\U0001F338 Soft Pastel Anime-Like Style",
+    "🌸 Soft Pastel Anime-Like Style",
     "🎞️ Cinematic Warm Filter"
 ], key="style_sequential")
 
@@ -160,25 +157,18 @@ if uploaded_seq and len(uploaded_seq) == 3:
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
 
-
-from io import BytesIO
-# ---------- Feature 4 ----------
+# ========== FEATURE 4 ==========
 st.markdown("---")
-st.header("📸 Combine All Thumbnails into One (1280x720)")
+st.header("🖼️ Combine Thumbnails from 3 Videos (1280x720)")
 
-uploaded_thumb_files = st.file_uploader(
-    "📤 Upload 3 Videos (Cartoonified, Original, Styled)", 
-    type=["mp4"], 
-    accept_multiple_files=True, 
-    key="thumbnails"
-)
+uploaded_thumb_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="thumbnails")
 
 if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
-    st.subheader("🕒 Select timestamps (in seconds) for each video")
+    st.subheader("⏱️ Select timestamps (in seconds) for each video")
     timestamps = []
     for i in range(3):
         ts = st.number_input(
-            f"Timestamp for video {i+1} (in seconds)", 
+            f"Timestamp for video {i+1}", 
             min_value=0.0, 
             value=1.0, 
             step=0.5, 
@@ -187,7 +177,6 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
         timestamps.append(ts)
 
     if st.button("🧩 Generate Combined Thumbnail"):
-        st.info("📸 Extracting and combining thumbnails...")
         with tempfile.TemporaryDirectory() as tmpdir:
             images = []
             for idx, file in enumerate(uploaded_thumb_files):
@@ -198,7 +187,7 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
                 clip = VideoFileClip(path)
                 frame = clip.get_frame(timestamps[idx])
                 img = Image.fromarray(frame)
-                img = img.resize((426, 720))  # Resize to 1/3 width of 1280, full height
+                img = img.resize((426, 720))  # ~1/3 of 1280
                 images.append(img)
                 clip.close()
 
@@ -206,7 +195,6 @@ if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
             for i, img in enumerate(images):
                 combined.paste(img, (i * 426, 0))
 
-            # Save combined image to bytes
             buffer = BytesIO()
             combined.save(buffer, format="JPEG")
             buffer.seek(0)
@@ -217,6 +205,6 @@ if "thumbnail_bytes" in st.session_state:
     st.download_button(
         "💾 Download Thumbnail", 
         st.session_state.thumbnail_bytes, 
-        file_name="combined_thumbnail_1280x720.jpg", 
+        file_name="combined_thumbnail.jpg", 
         mime="image/jpeg"
     )
