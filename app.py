@@ -45,12 +45,14 @@ def get_transform_function(style_name):
 
     return lambda frame: frame
 
+# ---------- Watermark Function with Fix ----------
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
         f"drawtext=text='{text}':"
         "x=w-mod(t*240\,w+tw):y=h-160:"
         "fontsize=40:fontcolor=white@0.6:"
-        "shadowcolor=black:shadowx=2:shadowy=2"
+        "shadowcolor=black:shadowx=2:shadowy=2:"
+        "fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     )
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
@@ -58,7 +60,12 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
         output_path
     ]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        st.error("❌ FFmpeg watermarking failed. See details below:")
+        st.code(e.stderr.decode(), language="bash")
+        raise
 
 # ========== FEATURE 1 ==========
 st.markdown("---")
