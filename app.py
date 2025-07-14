@@ -177,12 +177,13 @@ if uploaded_seq and len(uploaded_seq) == 3:
         final_output = os.path.join(tmpdir, "seq_final.mp4")
         watermark = (
             "drawtext=text='@USMIKASHMIRI':"
-            "x=w-mod(t*240\\,w+tw):y=h-160:"
+            "x=w-mod(t*240\,w+tw):y=h-160:"
             "fontsize=40:fontcolor=white@0.6:"
             "shadowcolor=black:shadowx=2:shadowy=2"
         )
         cmd = [
-            "ffmpeg", "-y", "-i", raw_output,
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-i", raw_output,
             "-vf", watermark,
             "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
             final_output
@@ -192,6 +193,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
         st.video(final_output)
         with open(final_output, "rb") as f:
             st.download_button("💾 Download Sequential Video", f.read(), file_name="sequential_output.mp4", mime="video/mp4")
+
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
