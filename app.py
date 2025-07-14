@@ -269,33 +269,50 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 raw_clips = []
                 styled_clips = []
 
-                # Sequential play: One video plays, others frozen
-                for i in range(3):
-                    dur = video_raw[i].duration
+                # ========== Segment 1 ==========
+                dur1 = video_raw[0].duration
+                raw_parts = [
+                    video_raw[0].set_position((0, 0)),
+                    video_raw[1].to_ImageClip(t=1).set_duration(dur1).set_position((width, 0)).set_opacity(0.4),
+                    video_raw[2].to_ImageClip(t=1).set_duration(dur1).set_position((2 * width, 0)).set_opacity(0.4),
+                ]
+                styled_parts = [
+                    video_styled[0].set_position((0, 0)),
+                    video_styled[1].to_ImageClip(t=1).set_duration(dur1).set_position((width, 0)).set_opacity(0.4),
+                    video_styled[2].to_ImageClip(t=1).set_duration(dur1).set_position((2 * width, 0)).set_opacity(0.4),
+                ]
+                raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur1))
+                styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur1))
 
-                    # RAW version
-                    raw_parts = []
-                    for j in range(3):
-                        if j == i:
-                            clip = video_raw[j].set_position((j * width, 0))
-                        else:
-                            freeze = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_position((j * width, 0)).set_opacity(0.4)
-                            clip = freeze
-                        raw_parts.append(clip)
-                    raw_composite = CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur)
-                    raw_clips.append(raw_composite)
+                # ========== Segment 2 ==========
+                dur2 = 1
+                raw_parts = [
+                    video_raw[0].to_ImageClip(t=1).set_duration(dur2).set_position((0, 0)).set_opacity(0.4),
+                    video_raw[1].subclip(0, dur2).set_position((width, 0)),
+                    video_raw[2].to_ImageClip(t=1).set_duration(dur2).set_position((2 * width, 0)).set_opacity(0.4),
+                ]
+                styled_parts = [
+                    video_styled[0].to_ImageClip(t=1).set_duration(dur2).set_position((0, 0)).set_opacity(0.4),
+                    video_styled[1].subclip(0, dur2).set_position((width, 0)),
+                    video_styled[2].to_ImageClip(t=1).set_duration(dur2).set_position((2 * width, 0)).set_opacity(0.4),
+                ]
+                raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur2))
+                styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur2))
 
-                    # STYLED version
-                    styled_parts = []
-                    for j in range(3):
-                        if j == i:
-                            clip = video_styled[j].set_position((j * width, 0))
-                        else:
-                            freeze = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_position((j * width, 0)).set_opacity(0.4)
-                            clip = freeze
-                        styled_parts.append(clip)
-                    styled_composite = CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur)
-                    styled_clips.append(styled_composite)
+                # ========== Segment 3 ==========
+                dur3 = 1
+                raw_parts = [
+                    video_raw[0].to_ImageClip(t=1).set_duration(dur3).set_position((0, 0)).set_opacity(0.4),
+                    video_raw[1].to_ImageClip(t=1).set_duration(dur3).set_position((width, 0)).set_opacity(0.4),
+                    video_raw[2].subclip(0, dur3).set_position((2 * width, 0)),
+                ]
+                styled_parts = [
+                    video_styled[0].to_ImageClip(t=1).set_duration(dur3).set_position((0, 0)).set_opacity(0.4),
+                    video_styled[1].to_ImageClip(t=1).set_duration(dur3).set_position((width, 0)).set_opacity(0.4),
+                    video_styled[2].subclip(0, dur3).set_position((2 * width, 0)),
+                ]
+                raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur3))
+                styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur3))
 
                 # Concatenate sequences
                 raw_sequence = concatenate_videoclips(raw_clips)
