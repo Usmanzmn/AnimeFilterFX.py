@@ -228,7 +228,7 @@ if st.session_state["sbs_final_output"]:
 
 # ========== FEATURE 3 (Sequential Playback: Raw + Styled+Watermark) ==========
 st.markdown("---")
-st.header("🕒 Play 3 Videos Sequentially with Fade & Watermark")
+st.header("🕒 Play 3 Videos Sequentially with Freeze & Watermark")
 
 # Initialize session state
 if "seq_raw_output" not in st.session_state:
@@ -261,37 +261,49 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 video_raw = [VideoFileClip(p).resize(height=720) for p in paths]
                 video_styled = [VideoFileClip(p).fl_image(transform).resize(height=720) for p in paths]
 
-                # Build composite sequences
                 raw_clips = []
                 styled_clips = []
 
+                intro_duration = 1  # 1 second freeze at the start
+
+                # Add 1-second intro freeze frame for both raw and styled
+                for video_set, target_list in [(video_raw, raw_clips), (video_styled, styled_clips)]:
+                    freeze_frames = []
+                    for j in range(3):
+                        freeze = video_set[j].to_ImageClip(t=0).set_duration(intro_duration).set_position((j * 640, 0))
+                        freeze_frames.append(freeze)
+                    intro_clip = CompositeVideoClip(freeze_frames, size=(1920, 720)).set_duration(intro_duration)
+                    target_list.append(intro_clip)
+
+                # Then play videos one by one while others are frozen
                 for i in range(3):
                     dur = video_raw[i].duration
-                    # Raw (unstyled)
-                    raw_clip_parts = []
+
+                    # Raw version
+                    raw_parts = []
                     for j in range(3):
                         if j == i:
                             clip = video_raw[j].set_position((j * 640, 0))
                         else:
                             still = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
                             clip = still
-                        raw_clip_parts.append(clip)
-                    raw_composite = CompositeVideoClip(raw_clip_parts, size=(1920, 720)).set_duration(dur)
+                        raw_parts.append(clip)
+                    raw_composite = CompositeVideoClip(raw_parts, size=(1920, 720)).set_duration(dur)
                     raw_clips.append(raw_composite)
 
-                    # Styled
-                    styled_clip_parts = []
+                    # Styled version
+                    styled_parts = []
                     for j in range(3):
                         if j == i:
                             clip = video_styled[j].set_position((j * 640, 0))
                         else:
                             still = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_position((j * 640, 0)).set_opacity(0.4)
                             clip = still
-                        styled_clip_parts.append(clip)
-                    styled_composite = CompositeVideoClip(styled_clip_parts, size=(1920, 720)).set_duration(dur)
+                        styled_parts.append(clip)
+                    styled_composite = CompositeVideoClip(styled_parts, size=(1920, 720)).set_duration(dur)
                     styled_clips.append(styled_composite)
 
-                # Concatenate sequences
+                # Concatenate all clips
                 raw_sequence = concatenate_videoclips(raw_clips)
                 styled_sequence = concatenate_videoclips(styled_clips)
 
@@ -306,15 +318,15 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 final_output_path = os.path.join(tmpdir, "seq_final.mp4")
                 apply_watermark(styled_temp_path, final_output_path)
 
-                # Store outputs
+                # Store in session state
                 with open(raw_output_path, "rb") as f:
                     st.session_state["seq_raw_output"] = f.read()
                 with open(final_output_path, "rb") as f:
                     st.session_state["seq_final_output"] = f.read()
 
-        st.success("✅ Sequential videos generated successfully!")
+        st.success("✅ Sequential videos generated with intro freeze and styled output!")
 
-# Show and download
+# Display and download
 if st.session_state["seq_raw_output"]:
     st.subheader("🎬 Raw Sequential Video (No Style, No Watermark)")
     st.video(st.session_state["seq_raw_output"])
