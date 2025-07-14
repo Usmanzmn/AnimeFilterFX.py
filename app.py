@@ -140,31 +140,35 @@ if uploaded_files and len(uploaded_files) == 3:
 # ========== FEATURE 3 ==========
 st.markdown("---")
 st.header("🕐 Play 3 Videos Sequentially with Watermark")
+
 uploaded_seq = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sequential")
 style_seq = st.selectbox("🎨 Style for Sequential", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sequential")
 
 if uploaded_seq and len(uploaded_seq) == 3:
     start_time = time.time()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, file in enumerate(uploaded_seq):
-            path = os.path.join(tmpdir, f"seq{i}.mp4")
-            with open(path, "wb") as f:
-                f.write(file.read())
-            paths.append(path)
+    with st.spinner("Processing..."):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = []
+            for i, file in enumerate(uploaded_seq):
+                path = os.path.join(tmpdir, f"seq{i}.mp4")
+                with open(path, "wb") as f:
+                    f.write(file.read())
+                paths.append(path)
 
-        transform_func = get_transform_function(style_seq)
-        clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
-        final_clip = concatenate_videoclips(clips, method="compose")
-        raw_output = os.path.join(tmpdir, "seq_raw.mp4")
-        final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+            transform_func = get_transform_function(style_seq)
+            clips = [VideoFileClip(p).fl_image(transform_func).resize(height=1080) for p in paths]
+            final_clip = concatenate_videoclips(clips, method="compose")
 
-        final_output = os.path.join(tmpdir, "seq_final.mp4")
-        apply_watermark(raw_output, final_output)
+            raw_output = os.path.join(tmpdir, "seq_raw.mp4")
+            final_clip.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-        st.video(final_output)
-        with open(final_output, "rb") as f:
-            st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
+            final_output = os.path.join(tmpdir, "seq_final.mp4")
+            apply_watermark(raw_output, final_output)
+
+            st.video(final_output)
+            with open(final_output, "rb") as f:
+                st.download_button("💾 Download Sequential", f.read(), file_name="sequential_output.mp4")
+
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
 # ========== FEATURE 4 ==========
