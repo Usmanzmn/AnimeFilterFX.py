@@ -130,48 +130,59 @@ if "styled_output_path" in st.session_state:
 
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
 
-# ========== FEATURE 2 (1280x720, Fit 3 Videos) ==========
+# ========== FEATURE 2 (With Generate + Download Separately) ==========
 st.markdown("---")
 st.header("📱 Side-by-Side (1280x720, 3 Videos) with Watermark")
+
+# State to store final output
+if "sbs_final_output" not in st.session_state:
+    st.session_state["sbs_final_output"] = None
 
 uploaded_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside")
 style_sbs = st.selectbox("🎨 Style for Side-by-Side", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_sbs")
 
 if uploaded_files and len(uploaded_files) == 3:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        paths = []
-        for i, file in enumerate(uploaded_files):
-            path = os.path.join(tmpdir, f"video{i}.mp4")
-            with open(path, "wb") as f:
-                f.write(file.read())
-            paths.append(path)
+    if st.button("🚀 Generate Video"):
+        with st.spinner("Processing video..."):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                paths = []
+                for i, file in enumerate(uploaded_files):
+                    path = os.path.join(tmpdir, f"video{i}.mp4")
+                    with open(path, "wb") as f:
+                        f.write(file.read())
+                    paths.append(path)
 
-        transform_func = get_transform_function(style_sbs)
-        
-        # Resize to fit 3 in 1280x720: width=426, height=720
-        target_width = 426
-        target_height = 720
+                transform_func = get_transform_function(style_sbs)
 
-        clips = [VideoFileClip(p).fl_image(transform_func).resize((target_width, target_height)) for p in paths]
-        duration = min(c.duration for c in clips)
-        clips = [c.subclip(0, duration) for c in clips]
+                target_width = 426
+                target_height = 720
 
-        # Composite into one 1280x720 video
-        side_by_side = CompositeVideoClip([
-            clips[0].set_position((0, 0)),
-            clips[1].set_position((426, 0)),
-            clips[2].set_position((852, 0))
-        ], size=(1280, 720)).set_duration(duration)
+                clips = [VideoFileClip(p).fl_image(transform_func).resize((target_width, target_height)) for p in paths]
+                duration = min(c.duration for c in clips)
+                clips = [c.subclip(0, duration) for c in clips]
 
-        raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
-        side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
+                side_by_side = CompositeVideoClip([
+                    clips[0].set_position((0, 0)),
+                    clips[1].set_position((426, 0)),
+                    clips[2].set_position((852, 0))
+                ], size=(1280, 720)).set_duration(duration)
 
-        final_output = os.path.join(tmpdir, "sbs_final.mp4")
-        apply_watermark(raw_output, final_output)
+                raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
+                side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-        st.video(final_output)
-        with open(final_output, "rb") as f:
-            st.download_button("💾 Download Side-by-Side", f.read(), file_name="side_by_side_1280x720.mp4")
+                final_output = os.path.join(tmpdir, "sbs_final.mp4")
+                apply_watermark(raw_output, final_output)
+
+                # Save file path to session state
+                with open(final_output, "rb") as f:
+                    st.session_state["sbs_final_output"] = f.read()
+
+                st.success("✅ Video generated successfully!")
+
+    # Show preview and download only if generated
+    if st.session_state["sbs_final_output"]:
+        st.video(st.session_state["sbs_final_output"])
+        st.download_button("💾 Download Side-by-Side", st.session_state["sbs_final_output"], file_name="side_by_side_1280x720.mp4")
 
     st.success("✅ 3 videos combined into 1280x720 perfectly!")
 
