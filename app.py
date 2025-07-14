@@ -20,7 +20,6 @@ def get_transform_function(style_name):
             r = np.clip(r * 1.08 + 20, 0, 255)
             g = np.clip(g * 1.06 + 15, 0, 255)
             b = np.clip(b * 1.15 + 25, 0, 255)
-
             blurred = (frame.astype(np.float32) * 0.4 +
                        cv2.GaussianBlur(frame, (7, 7), 0).astype(np.float32) * 0.6)
             tint = np.array([10, -5, 15], dtype=np.float32)
@@ -34,13 +33,11 @@ def get_transform_function(style_name):
             r = np.clip(r * 1.15 + 15, 0, 255)
             g = np.clip(g * 1.08 + 8, 0, 255)
             b = np.clip(b * 0.95, 0, 255)
-
             rows, cols = r.shape
             Y, X = np.ogrid[:rows, :cols]
             center = (rows / 2, cols / 2)
             vignette = 1 - ((X - center[1])**2 + (Y - center[0])**2) / (1.5 * center[0] * center[1])
             vignette = np.clip(vignette, 0.3, 1)[..., np.newaxis]
-
             result = np.stack([r, g, b], axis=2).astype(np.float32) * vignette
             grain = np.random.normal(0, 3, frame.shape).astype(np.float32)
             return np.clip(result + grain, 0, 255).astype(np.uint8)
@@ -51,7 +48,7 @@ def get_transform_function(style_name):
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
         f"drawtext=text='{text}':"
-        "x=w-mod(t*240\\,w+tw):y=h-160:"
+        "x=w-mod(t*240\,w+tw):y=h-160:"
         "fontsize=40:fontcolor=white@0.6:"
         "shadowcolor=black:shadowx=2:shadowy=2"
     )
@@ -61,11 +58,7 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         "-c:v", "libx264", "-preset", "fast", "-crf", "22", "-pix_fmt", "yuv420p",
         output_path
     ]
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        st.error("❌ Failed to apply watermark. Check FFmpeg or file permissions.")
-        st.text(f"Command failed: {e}")
+    subprocess.run(cmd, check=True)
 
 # ========== FEATURE 1 ==========
 st.markdown("---")
@@ -82,7 +75,6 @@ if uploaded_file:
 
         clip = VideoFileClip(input_path)
         styled_clip = clip.fl_image(get_transform_function(style))
-
         styled_path = os.path.join(tmpdir, "styled.mp4")
         styled_clip.write_videofile(styled_path, codec="libx264", audio_codec="aac")
 
@@ -101,7 +93,6 @@ if uploaded_file:
         st.video(final_path)
         with open(final_path, "rb") as f:
             st.download_button("💾 Download Before & After", f.read(), file_name="before_after.mp4")
-
     st.success(f"✅ Completed in {time.time() - start_time:.2f} seconds")
 
 # ========== FEATURE 2 ==========
