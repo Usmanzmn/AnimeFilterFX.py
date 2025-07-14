@@ -130,7 +130,7 @@ if "styled_output_path" in st.session_state:
 
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
 
-# ========== FEATURE 2 (Only Raw + Final Side-by-Side Videos) ==========
+# ========== FEATURE 2 (Improved Side-by-Side with Proper Style Application) ==========
 st.markdown("---")
 st.header("📱 Side-by-Side (1280x720, 3 Videos) with Watermark")
 
@@ -144,14 +144,14 @@ uploaded_files = st.file_uploader(
     "📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="sidebyside"
 )
 style_sbs = st.selectbox(
-    "🎨 Style for Side-by-Side", 
-    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], 
+    "🎨 Style for Side-by-Side",
+    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
     key="style_sbs"
 )
 
 if uploaded_files and len(uploaded_files) == 3:
-    if st.button("🚀 Generate Video"):
-        with st.spinner("Processing video..."):
+    if st.button("🚀 Generate Side-by-Side Video"):
+        with st.spinner("Processing..."):
             with tempfile.TemporaryDirectory() as tmpdir:
                 paths = []
                 for i, file in enumerate(uploaded_files):
@@ -161,22 +161,26 @@ if uploaded_files and len(uploaded_files) == 3:
                     paths.append(path)
 
                 transform_func = get_transform_function(style_sbs)
-                target_width = 426
-                target_height = 720
+                target_size = (426, 720)
 
-                # Apply style during raw generation
-                styled_clips = [
-                    VideoFileClip(p).fl_image(transform_func).resize((target_width, target_height)) 
-                    for p in paths
-                ]
-                duration = min(c.duration for c in styled_clips)
-                styled_clips = [c.subclip(0, duration) for c in styled_clips]
+                # Load and style videos
+                clips = []
+                min_duration = None
+                for path in paths:
+                    clip = VideoFileClip(path).resize(target_size).fl_image(transform_func)
+                    if min_duration is None or clip.duration < min_duration:
+                        min_duration = clip.duration
+                    clips.append(clip)
 
+                # Trim to same duration
+                clips = [c.subclip(0, min_duration) for c in clips]
+
+                # Position side-by-side
                 side_by_side = CompositeVideoClip([
-                    styled_clips[0].set_position((0, 0)),
-                    styled_clips[1].set_position((426, 0)),
-                    styled_clips[2].set_position((852, 0))
-                ], size=(1280, 720)).set_duration(duration)
+                    clips[0].set_position((0, 0)),
+                    clips[1].set_position((426, 0)),
+                    clips[2].set_position((852, 0))
+                ], size=(1280, 720)).set_duration(min_duration)
 
                 raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
                 side_by_side.write_videofile(raw_output, codec="libx264", audio_codec="aac")
@@ -184,25 +188,25 @@ if uploaded_files and len(uploaded_files) == 3:
                 final_output = os.path.join(tmpdir, "sbs_final.mp4")
                 apply_watermark(raw_output, final_output)
 
-                # Save both versions
+                # Store results in session state
                 with open(raw_output, "rb") as f:
                     st.session_state["sbs_raw_output"] = f.read()
                 with open(final_output, "rb") as f:
                     st.session_state["sbs_final_output"] = f.read()
 
-            # ✅ SUCCESS MESSAGE (after tempdir block)
-            st.success("✅ Video generated successfully!")
+            st.success("✅ Side-by-side video generated successfully!")
 
-# Display and download both versions
+# Show and allow download
 if st.session_state["sbs_raw_output"]:
-    st.markdown("### 🎬 Before Watermark (Styled Raw Video)")
+    st.subheader("🎬 Styled Raw Video (Before Watermark)")
     st.video(st.session_state["sbs_raw_output"])
-    st.download_button("⬇️ Download Raw Video", st.session_state["sbs_raw_output"], file_name="raw_styled.mp4")
+    st.download_button("⬇️ Download Raw", st.session_state["sbs_raw_output"], file_name="raw_styled.mp4")
 
 if st.session_state["sbs_final_output"]:
-    st.markdown("### 🌟 Final Video (With Watermark)")
+    st.subheader("🌟 Final Video (With Watermark)")
     st.video(st.session_state["sbs_final_output"])
-    st.download_button("⬇️ Download Final Video", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
+    st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
+
 
 # ========== FEATURE 3 ==========
 st.markdown("---")
