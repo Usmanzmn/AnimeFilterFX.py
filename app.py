@@ -345,30 +345,59 @@ if st.session_state["seq_final_output"]:
     st.download_button("⬇️ Download Final", st.session_state["seq_final_output"], file_name="sequential_styled.mp4")
 
 
+from io import BytesIO  # ✅ Add this import at the top of your file
+
 # ========== FEATURE 4 ==========
 st.markdown("---")
 st.header("🖼️ Combine Thumbnails from 3 Videos (1280x720)")
-uploaded_thumb_files = st.file_uploader("📤 Upload 3 Videos", type=["mp4"], accept_multiple_files=True, key="thumbnails")
+
+uploaded_thumb_files = st.file_uploader(
+    "📤 Upload 3 Videos", 
+    type=["mp4"], 
+    accept_multiple_files=True, 
+    key="thumbnails"
+)
 
 if uploaded_thumb_files and len(uploaded_thumb_files) == 3:
     st.subheader("⏱️ Select timestamps (in seconds) for each video")
-    timestamps = [st.number_input(f"Timestamp for video {i+1}", min_value=0.0, value=1.0, step=0.5, key=f"ts_{i}") for i in range(3)]
+    timestamps = [
+        st.number_input(
+            f"Timestamp for video {i+1}",
+            min_value=0.0,
+            value=1.0,
+            step=0.5,
+            key=f"ts_{i}"
+        )
+        for i in range(3)
+    ]
+
     if st.button("🧩 Generate Combined Thumbnail"):
         with tempfile.TemporaryDirectory() as tmpdir:
             images = []
+
             for idx, file in enumerate(uploaded_thumb_files):
                 path = os.path.join(tmpdir, f"thumb{idx}.mp4")
                 with open(path, "wb") as f:
                     f.write(file.read())
+
                 clip = VideoFileClip(path)
                 frame = clip.get_frame(timestamps[idx])
                 img = Image.fromarray(frame).resize((426, 720))
                 images.append(img)
                 clip.close()
+
             combined = Image.new("RGB", (1280, 720))
             for i, img in enumerate(images):
                 combined.paste(img, (i * 426, 0))
+
             buffer = BytesIO()
             combined.save(buffer, format="JPEG")
+            buffer.seek(0)  # ✅ Make sure the buffer is at the start
+
             st.image(buffer.getvalue(), caption="Combined Thumbnail (1280x720)", use_container_width=True)
-            st.download_button("💾 Download Thumbnail", buffer.getvalue(), file_name="combined_thumbnail.jpg", mime="image/jpeg")
+            st.download_button(
+                "💾 Download Thumbnail", 
+                buffer.getvalue(), 
+                file_name="combined_thumbnail.jpg", 
+                mime="image/jpeg"
+            )
