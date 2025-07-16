@@ -3,13 +3,16 @@ import os
 import tempfile
 import subprocess
 import time
-from moviepy.editor import VideoFileClip, concatenate_videoclips, CompositeVideoClip
+from moviepy.editor import VideoFileClip, CompositeVideoClip, concatenate_videoclips
 from PIL import Image
 import numpy as np
 import cv2
+import shutil
+import random
+from io import BytesIO
 
-st.set_page_config(page_title="🎬 AI Video Effects App", layout="centered")
-st.title("🎬 AI Video Effects App")
+st.set_page_config(page_title="🎨 AI Video Effects App", layout="centered")
+st.title("🎨 AI Video Effects App")
 
 # ---------- Style Filter Functions ----------
 def get_transform_function(style_name):
@@ -26,7 +29,7 @@ def get_transform_function(style_name):
             return result
         return pastel_style
 
-    elif style_name == "🎞️ Cinematic Warm Filter":
+    elif style_name == "🎮 Cinematic Warm Filter":
         def warm_style(frame):
             r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
             r = np.clip(r * 1.15 + 15, 0, 255)
@@ -44,12 +47,26 @@ def get_transform_function(style_name):
 
     return lambda frame: frame
 
+# ---------- Rain Overlay (OpenCV based) ----------
+def add_rain_effect(frame, density=0.002):
+    frame = frame.copy()
+    h, w, _ = frame.shape
+    num_drops = int(h * w * density)
+    for _ in range(num_drops):
+        x = random.randint(0, w - 1)
+        y = random.randint(0, h - 20)
+        length = random.randint(10, 20)
+        thickness = 1
+        color = (200, 200, 255)
+        cv2.line(frame, (x, y), (x, y + length), color, thickness)
+    return frame
+
 # ---------- Watermark ----------
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
-        "scale=ceil(iw/2)*2:ceil(ih/2)*2,"
-        f"drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':"
-        f"text='{text}':x=w-mod(t*240\\,w+tw):y=h-160:"
+        "scale=ceil(iw/2)*2:ceil(ih/2)*2," +
+        f"drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':" +
+        f"text='{text}':x=w-mod(t*240\\,w+tw):y=h-160:" +
         "fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
     )
     cmd = [
@@ -65,81 +82,86 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         st.code(e.stderr.decode(), language="bash")
         raise
 
-import shutil  # Add this at the top
+# ========== FEATURE 1: Apply Style to Single Video ==========
+st.markdown("---")
+st.header("🎨 Apply Style to Single Video")
 
-# ========== FEATURE 1 ==========  
-st.markdown("---")  
-st.header("🎨 Apply Style to Single Video")  
-  
-uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")  
-style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")  
-add_watermark = st.checkbox("✅ Add Watermark (@USMIKASHMIRI)", value=False, key="add_watermark")  
-  
-generate = st.button("🚀 Generate Styled Video")  
-output_dir = "processed_videos"  
-os.makedirs(output_dir, exist_ok=True)  
-  
-if uploaded_file and generate:  
-    start_time = time.time()  
-    with tempfile.TemporaryDirectory() as tmpdir:  
-        input_path = os.path.join(tmpdir, "input.mp4")  
-        with open(input_path, "wb") as f:  
-            f.write(uploaded_file.read())  
-  
-        clip = VideoFileClip(input_path)  
-        styled_clip = clip.fl_image(get_transform_function(style))  
-        styled_temp = os.path.join(tmpdir, "styled.mp4")  
-        styled_clip.write_videofile(styled_temp, codec="libx264", audio_codec="aac")  
-  
-        # Apply watermark only if checkbox is checked  
-        if add_watermark:  
-            watermarked_output = os.path.join(tmpdir, "styled_watermarked.mp4")  
-            apply_watermark(styled_temp, watermarked_output)  
-            styled_final_path = watermarked_output  
-        else:  
-            styled_final_path = styled_temp  
-  
-        # Generate previews (scaled to height 360 for smaller preview)  
-        preview_original_temp = os.path.join(tmpdir, "original_preview.mp4")  
-        preview_styled_temp = os.path.join(tmpdir, "styled_preview.mp4")  
-        clip.resize(height=360).write_videofile(preview_original_temp, codec="libx264", audio_codec="aac")  
-        VideoFileClip(styled_final_path).resize(height=360).write_videofile(preview_styled_temp, codec="libx264", audio_codec="aac")  
-  
-        # Copy files to persistent directory  
-        orig_final = os.path.join(output_dir, "original.mp4")  
-        styled_final = os.path.join(output_dir, "styled.mp4")  
-        preview_orig_final = os.path.join(output_dir, "original_preview.mp4")  
-        preview_styled_final = os.path.join(output_dir, "styled_preview.mp4")  
-  
-        shutil.copy(input_path, orig_final)  
-        shutil.copy(styled_final_path, styled_final)  
-        shutil.copy(preview_original_temp, preview_orig_final)  
-        shutil.copy(preview_styled_temp, preview_styled_final)  
-  
-        # Save in session  
-        st.session_state["styled_output_path"] = styled_final  
-        st.session_state["original_path"] = orig_final  
-        st.session_state["preview_original"] = preview_orig_final  
-        st.session_state["preview_styled"] = preview_styled_final  
-        st.session_state["process_time"] = time.time() - start_time  
-  
-# Display video + downloads  
-if "styled_output_path" in st.session_state:  
-    col1, col2 = st.columns(2)  
-    with col1:  
-        st.subheader("🔹 Original")  
-        st.video(st.session_state["preview_original"])  
-        with open(st.session_state["original_path"], "rb") as f:  
-            st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")  
-  
-    with col2:  
-        st.subheader("🔸 Styled")  
-        st.video(st.session_state["preview_styled"])  
-        with open(st.session_state["styled_output_path"], "rb") as f:  
-            st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")  
-  
+uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
+style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")
+add_watermark = st.checkbox("✅ Add Watermark (@USMIKASHMIRI)", value=False, key="add_watermark")
+add_rain = st.checkbox("🌧️ Add Light Rain Overlay (Code-Based)", value=False, key="add_rain")
+
+generate = st.button("🌸 Generate Styled Video")
+output_dir = "processed_videos"
+os.makedirs(output_dir, exist_ok=True)
+
+if uploaded_file and generate:
+    start_time = time.time()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_path = os.path.join(tmpdir, "input.mp4")
+        with open(input_path, "wb") as f:
+            f.write(uploaded_file.read())
+
+        clip = VideoFileClip(input_path)
+        transform_fn = get_transform_function(style)
+
+        if add_rain:
+            def combined_effect(frame):
+                return add_rain_effect(transform_fn(frame))
+            styled_clip = clip.fl_image(combined_effect)
+        else:
+            styled_clip = clip.fl_image(transform_fn)
+
+        styled_temp = os.path.join(tmpdir, "styled.mp4")
+        styled_clip.write_videofile(styled_temp, codec="libx264", audio_codec="aac")
+
+        if add_watermark:
+            watermarked_output = os.path.join(tmpdir, "styled_watermarked.mp4")
+            apply_watermark(styled_temp, watermarked_output)
+            styled_final_path = watermarked_output
+        else:
+            styled_final_path = styled_temp
+
+        # Generate previews (scaled to height 360)
+        preview_original_temp = os.path.join(tmpdir, "original_preview.mp4")
+        preview_styled_temp = os.path.join(tmpdir, "styled_preview.mp4")
+        clip.resize(height=360).write_videofile(preview_original_temp, codec="libx264", audio_codec="aac")
+        VideoFileClip(styled_final_path).resize(height=360).write_videofile(preview_styled_temp, codec="libx264", audio_codec="aac")
+
+        # Save files to persistent directory
+        orig_final = os.path.join(output_dir, "original.mp4")
+        styled_final = os.path.join(output_dir, "styled.mp4")
+        preview_orig_final = os.path.join(output_dir, "original_preview.mp4")
+        preview_styled_final = os.path.join(output_dir, "styled_preview.mp4")
+
+        shutil.copy(input_path, orig_final)
+        shutil.copy(styled_final_path, styled_final)
+        shutil.copy(preview_original_temp, preview_orig_final)
+        shutil.copy(preview_styled_temp, preview_styled_final)
+
+        # Save in session
+        st.session_state["styled_output_path"] = styled_final
+        st.session_state["original_path"] = orig_final
+        st.session_state["preview_original"] = preview_orig_final
+        st.session_state["preview_styled"] = preview_styled_final
+        st.session_state["process_time"] = time.time() - start_time
+
+# Display video + downloads
+if "styled_output_path" in st.session_state:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("🔹 Original")
+        st.video(st.session_state["preview_original"])
+        with open(st.session_state["original_path"], "rb") as f:
+            st.download_button("⬇️ Download Original", f.read(), file_name="original.mp4")
+
+    with col2:
+        st.subheader("🔸 Styled")
+        st.video(st.session_state["preview_styled"])
+        with open(st.session_state["styled_output_path"], "rb") as f:
+            st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")
+
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
-
 
 
 # ========== FEATURE 2 (Side-by-Side: Raw Unstyled & Final Styled+Watermarked) ==========
