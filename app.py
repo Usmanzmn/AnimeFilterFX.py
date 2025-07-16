@@ -73,6 +73,7 @@ st.header("🎨 Apply Style to Single Video")
   
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")  
 style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")  
+add_watermark = st.checkbox("✅ Add Watermark (@USMIKASHMIRI)", value=False, key="add_watermark")  
   
 generate = st.button("🚀 Generate Styled Video")  
 output_dir = "processed_videos"  
@@ -90,9 +91,8 @@ if uploaded_file and generate:
         styled_temp = os.path.join(tmpdir, "styled.mp4")  
         styled_clip.write_videofile(styled_temp, codec="libx264", audio_codec="aac")  
   
-        # Check resolution and apply watermark if 1280x720  
-        w, h = styled_clip.size  
-        if (w, h) == (1280, 720):  
+        # Apply watermark only if checkbox is checked  
+        if add_watermark:  
             watermarked_output = os.path.join(tmpdir, "styled_watermarked.mp4")  
             apply_watermark(styled_temp, watermarked_output)  
             styled_final_path = watermarked_output  
@@ -139,6 +139,7 @@ if "styled_output_path" in st.session_state:
             st.download_button("⬇️ Download Styled", f.read(), file_name="styled.mp4")  
   
     st.success(f"✅ Done in {st.session_state['process_time']:.2f} sec")
+
 
 
 # ========== FEATURE 2 (Side-by-Side: Raw Unstyled & Final Styled+Watermarked) ==========
