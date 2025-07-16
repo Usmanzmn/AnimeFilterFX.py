@@ -3,12 +3,13 @@ import os
 import tempfile
 import subprocess
 import time
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, CompositeVideoClip, concatenate_videoclips
 from PIL import Image
 import numpy as np
 import cv2
 import shutil
 import random
+from io import BytesIO  # ✅ Add this import at the top of your file
 
 st.set_page_config(page_title="🎨 AI Video Effects App", layout="centered")
 st.title("🎨 AI Video Effects App")
@@ -60,6 +61,16 @@ def add_rain_effect(frame, density=0.002):
         cv2.line(frame, (x, y), (x, y + length), color, thickness)
     return frame
 
+def get_rain_function(option):
+    if option == "🌧️ Light Rain (Default)":
+        return lambda f: add_rain_effect(f, density=0.002)
+    elif option == "🌦️ Extra Light Rain":
+        return lambda f: add_rain_effect(f, density=0.0008)
+    elif option == "🌤️ Ultra Light Rain":
+        return lambda f: add_rain_effect(f, density=0.0004)
+    else:
+        return lambda f: f
+
 # ---------- Watermark ----------
 def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
@@ -80,6 +91,12 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         st.error("❌ FFmpeg watermarking failed.")
         st.code(e.stderr.decode(), language="bash")
         raise
+
+# 🎯 Inject rain options INSIDE Feature 2 & 3 UI blocks (moved in the code below)
+# 🌧️ Add Rain to Feature 2 and 3
+# Use rain_option_2, rain_fn_2 and rain_option_3, rain_fn_3 where needed in processing pipeline.
+
+
 
 # ========== FEATURE 1 ==========
 st.markdown("---")
@@ -206,6 +223,14 @@ style_sbs = st.selectbox(
     key="style_sbs"
 )
 
+rain_option_2 = st.selectbox(
+    "🌧️ Add Rain to Styled Video (Feature 2)",
+    ["None", "🌧️ Light Rain (Default)", "🌦️ Extra Light Rain", "🌤️ Ultra Light Rain"],
+    key="rain_option_2"
+)
+
+rain_fn_2 = get_rain_function(rain_option_2)
+
 if uploaded_files and len(uploaded_files) == 3:
     if st.button("🚀 Generate Side-by-Side Video"):
         with st.spinner("Processing..."):
@@ -220,14 +245,13 @@ if uploaded_files and len(uploaded_files) == 3:
                 target_size = (426, 720)
                 transform_func = get_transform_function(style_sbs)
 
-                # Load raw unstyled clips
                 raw_clips = []
                 styled_clips = []
                 min_duration = None
 
                 for path in paths:
                     clip_raw = VideoFileClip(path).resize(target_size)
-                    clip_styled = clip_raw.fl_image(transform_func)
+                    clip_styled = clip_raw.fl_image(lambda f: rain_fn_2(transform_func(f)))
 
                     duration = clip_raw.duration
                     if min_duration is None or duration < min_duration:
@@ -236,11 +260,10 @@ if uploaded_files and len(uploaded_files) == 3:
                     raw_clips.append(clip_raw)
                     styled_clips.append(clip_styled)
 
-                # Trim both sets to shortest clip duration
+                # Trim both sets to same duration
                 raw_clips = [c.subclip(0, min_duration) for c in raw_clips]
                 styled_clips = [c.subclip(0, min_duration) for c in styled_clips]
 
-                # Create raw (unstyled) side-by-side
                 raw_combined = CompositeVideoClip([
                     raw_clips[0].set_position((0, 0)),
                     raw_clips[1].set_position((426, 0)),
@@ -250,7 +273,6 @@ if uploaded_files and len(uploaded_files) == 3:
                 raw_output = os.path.join(tmpdir, "sbs_raw.mp4")
                 raw_combined.write_videofile(raw_output, codec="libx264", audio_codec="aac")
 
-                # Create styled + watermark version
                 styled_combined = CompositeVideoClip([
                     styled_clips[0].set_position((0, 0)),
                     styled_clips[1].set_position((426, 0)),
@@ -263,7 +285,7 @@ if uploaded_files and len(uploaded_files) == 3:
                 final_output = os.path.join(tmpdir, "sbs_final.mp4")
                 apply_watermark(styled_temp, final_output)
 
-                # Save to session state
+                # Save to session
                 with open(raw_output, "rb") as f:
                     st.session_state["sbs_raw_output"] = f.read()
                 with open(final_output, "rb") as f:
@@ -271,7 +293,7 @@ if uploaded_files and len(uploaded_files) == 3:
 
             st.success("✅ Raw and Final videos generated successfully!")
 
-# Show raw and final output
+# ✅ SHOW VIDEO OUTPUTS
 if st.session_state["sbs_raw_output"]:
     st.subheader("🎬 Raw Video (No Style, No Watermark)")
     st.video(st.session_state["sbs_raw_output"])
@@ -281,6 +303,8 @@ if st.session_state["sbs_final_output"]:
     st.subheader("🌟 Final Video (Styled + Watermark)")
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
+
+
 
 # ========== FEATURE 3 (Sequential Playback with 1-Second Triple Intro) ==========
 st.markdown("---")
@@ -300,14 +324,17 @@ style_seq = st.selectbox(
     key="style_seq"
 )
 
+rain_option_3 = st.selectbox(
+    "🌧️ Add Rain to Styled Video (Feature 3)",
+    ["None", "🌧️ Light Rain (Default)", "🌦️ Extra Light Rain", "🌤️ Ultra Light Rain"],
+    key="rain_option_3"
+)
+rain_fn_3 = get_rain_function(rain_option_3)
+
 if uploaded_seq and len(uploaded_seq) == 3:
     if st.button("🚀 Generate Sequential Video"):
         with st.spinner("Processing..."):
-            import os, tempfile
-            from moviepy.editor import VideoFileClip, CompositeVideoClip, concatenate_videoclips
-
             with tempfile.TemporaryDirectory() as tmpdir:
-                # Save uploaded videos
                 paths = []
                 for i, file in enumerate(uploaded_seq):
                     file_path = os.path.join(tmpdir, f"seq{i}.mp4")
@@ -315,12 +342,11 @@ if uploaded_seq and len(uploaded_seq) == 3:
                         out.write(file.read())
                     paths.append(file_path)
 
-                # Prepare transform and video clips
                 transform = get_transform_function(style_seq)
                 width, height = int(1280 / 3), 720
 
                 video_raw = [VideoFileClip(p).resize((width, height)) for p in paths]
-                video_styled = [VideoFileClip(p).fl_image(transform).resize((width, height)) for p in paths]
+                video_styled = [VideoFileClip(p).fl_image(lambda f: rain_fn_3(transform(f))).resize((width, height)) for p in paths]
 
                 raw_clips, styled_clips = [], []
 
@@ -343,20 +369,16 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
                 # ========== SEGMENTS 1-3: One plays, others frozen & faded ==========
                 for i in range(3):
-                    # Full duration of the current main video
                     dur = video_raw[i].duration
 
-                    # Raw parts
                     raw_parts = []
                     styled_parts = []
 
                     for j in range(3):
                         if j == i:
-                            # Play full
                             raw_clip = video_raw[j]
                             styled_clip = video_styled[j]
                         else:
-                            # Frozen + faded image
                             raw_clip = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
                             styled_clip = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
 
@@ -366,22 +388,18 @@ if uploaded_seq and len(uploaded_seq) == 3:
                     raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur))
                     styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur))
 
-                # ========== CONCATENATE ==========
+                # ========== CONCATENATE & EXPORT ==========
                 raw_sequence = concatenate_videoclips(raw_clips)
                 styled_sequence = concatenate_videoclips(styled_clips)
 
-                # ========== EXPORT RAW ==========
                 raw_output_path = os.path.join(tmpdir, "seq_raw.mp4")
-                raw_sequence.write_videofile(raw_output_path, codec="libx264", audio_codec="aac")
-
-                # ========== EXPORT STYLED + WATERMARK ==========
                 styled_temp_path = os.path.join(tmpdir, "seq_styled_temp.mp4")
-                styled_sequence.write_videofile(styled_temp_path, codec="libx264", audio_codec="aac")
-
                 final_output_path = os.path.join(tmpdir, "seq_final.mp4")
+
+                raw_sequence.write_videofile(raw_output_path, codec="libx264", audio_codec="aac")
+                styled_sequence.write_videofile(styled_temp_path, codec="libx264", audio_codec="aac")
                 apply_watermark(styled_temp_path, final_output_path)
 
-                # ========== SAVE TO SESSION ==========
                 with open(raw_output_path, "rb") as f:
                     st.session_state["seq_raw_output"] = f.read()
                 with open(final_output_path, "rb") as f:
@@ -389,7 +407,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
         st.success("✅ Sequential videos generated with 1-second intro + full playback + watermark!")
 
-# ========== DISPLAY ==========
+# ✅ DISPLAY
 if st.session_state["seq_raw_output"]:
     st.subheader("🎬 Raw Sequential Video (No Style, No Watermark)")
     st.video(st.session_state["seq_raw_output"])
@@ -399,9 +417,6 @@ if st.session_state["seq_final_output"]:
     st.subheader("🌟 Final Sequential Video (Styled + Watermark)")
     st.video(st.session_state["seq_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["seq_final_output"], file_name="sequential_styled.mp4")
-
-
-from io import BytesIO  # ✅ Add this import at the top of your file
 
 # ========== FEATURE 4 ==========
 st.markdown("---")
