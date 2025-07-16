@@ -3,13 +3,12 @@ import os
 import tempfile
 import subprocess
 import time
-from moviepy.editor import VideoFileClip, CompositeVideoClip, concatenate_videoclips
+from moviepy.editor import VideoFileClip
 from PIL import Image
 import numpy as np
 import cv2
 import shutil
 import random
-from io import BytesIO
 
 st.set_page_config(page_title="🎨 AI Video Effects App", layout="centered")
 st.title("🎨 AI Video Effects App")
@@ -47,7 +46,7 @@ def get_transform_function(style_name):
 
     return lambda frame: frame
 
-# ---------- Rain Overlay (OpenCV based) ----------
+# ---------- Rain Overlay ----------
 def add_rain_effect(frame, density=0.002):
     frame = frame.copy()
     h, w, _ = frame.shape
@@ -82,14 +81,24 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
         st.code(e.stderr.decode(), language="bash")
         raise
 
-# ========== FEATURE 1: Apply Style to Single Video ==========
+# ========== FEATURE 1 ==========
 st.markdown("---")
 st.header("🎨 Apply Style to Single Video")
 
 uploaded_file = st.file_uploader("📤 Upload a Video", type=["mp4"], key="style_upload")
-style = st.selectbox("🎨 Choose a Style", ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"], key="style_select")
+style = st.selectbox(
+    "🎨 Choose a Style",
+    ["None", "🌸 Soft Pastel Anime-Like Style", "🎞️ Cinematic Warm Filter"],
+    key="style_select"
+)
+
 add_watermark = st.checkbox("✅ Add Watermark (@USMIKASHMIRI)", value=False, key="add_watermark")
-add_rain = st.checkbox("🌧️ Add Light Rain Overlay (Code-Based)", value=False, key="add_rain")
+
+rain_option = st.selectbox(
+    "🌧️ Add Rain Overlay",
+    ["None", "🌧️ Light Rain (Default)", "🌦️ Extra Light Rain", "🌤️ Ultra Light Rain"],
+    key="rain_option"
+)
 
 generate = st.button("🌸 Generate Styled Video")
 output_dir = "processed_videos"
@@ -105,10 +114,22 @@ if uploaded_file and generate:
         clip = VideoFileClip(input_path)
         transform_fn = get_transform_function(style)
 
-        if add_rain:
+        # Rain logic
+        if rain_option == "🌧️ Light Rain (Default)":
             def combined_effect(frame):
-                return add_rain_effect(transform_fn(frame))
+                return add_rain_effect(transform_fn(frame), density=0.002)
             styled_clip = clip.fl_image(combined_effect)
+
+        elif rain_option == "🌦️ Extra Light Rain":
+            def combined_effect(frame):
+                return add_rain_effect(transform_fn(frame), density=0.0008)
+            styled_clip = clip.fl_image(combined_effect)
+
+        elif rain_option == "🌤️ Ultra Light Rain":
+            def combined_effect(frame):
+                return add_rain_effect(transform_fn(frame), density=0.0004)
+            styled_clip = clip.fl_image(combined_effect)
+
         else:
             styled_clip = clip.fl_image(transform_fn)
 
@@ -146,7 +167,7 @@ if uploaded_file and generate:
         st.session_state["preview_styled"] = preview_styled_final
         st.session_state["process_time"] = time.time() - start_time
 
-# Display video + downloads
+# Display result
 if "styled_output_path" in st.session_state:
     col1, col2 = st.columns(2)
     with col1:
