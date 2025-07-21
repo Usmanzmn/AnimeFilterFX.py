@@ -76,7 +76,7 @@ def apply_watermark(input_path, output_path, text="@USMIKASHMIRI"):
     watermark_filter = (
         "scale=ceil(iw/2)*2:ceil(ih/2)*2," +
         f"drawtext=fontfile='/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf':" +
-        f"text='{text}':x=w-mod(t*240\\,w+tw):y=h-160:" +
+        f"text='{text}':x=w-mod(t*240\\,w+tw):y=h-160:"
         "fontsize=40:fontcolor=white@0.6:shadowcolor=black:shadowx=2:shadowy=2"
     )
     cmd = [
