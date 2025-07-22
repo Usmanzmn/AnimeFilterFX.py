@@ -303,9 +303,6 @@ if st.session_state["sbs_final_output"]:
     st.subheader("🌟 Final Video (Styled + Watermark)")
     st.video(st.session_state["sbs_final_output"])
     st.download_button("⬇️ Download Final", st.session_state["sbs_final_output"], file_name="styled_watermarked.mp4")
-
-
-
 # ========== FEATURE 3 (Sequential Playback with 1-Second Triple Intro) ==========
 st.markdown("---")
 st.header("🕒 Play 3 Videos Sequentially with 1s Intro & Watermark")
@@ -342,22 +339,11 @@ if uploaded_seq and len(uploaded_seq) == 3:
                         out.write(file.read())
                     paths.append(file_path)
 
-                # ✅ Duration check
-                for idx, path in enumerate(paths):
-                    clip = VideoFileClip(path)
-                    if clip.duration < 1.0:
-                        st.error(f"❌ Video {idx+1} is too short ({clip.duration:.2f} sec). Minimum 1s required.")
-                        st.stop()
-                    clip.close()
-
                 transform = get_transform_function(style_seq)
                 width, height = int(1280 / 3), 720
 
                 video_raw = [VideoFileClip(p).resize((width, height)) for p in paths]
-                video_styled = [
-                    VideoFileClip(p).fl_image(lambda f: rain_fn_3(transform(f))).resize((width, height))
-                    for p in paths
-                ]
+                video_styled = [VideoFileClip(p).fl_image(lambda f: rain_fn_3(transform(f))).resize((width, height)) for p in paths]
 
                 raw_clips, styled_clips = [], []
 
@@ -367,13 +353,13 @@ if uploaded_seq and len(uploaded_seq) == 3:
                     video_raw[0].subclip(0, intro_duration).set_position((0, 0)),
                     video_raw[1].subclip(0, intro_duration).set_position((width, 0)),
                     video_raw[2].subclip(0, intro_duration).set_position((2 * width, 0))
-                ], size=(1280, height))
+                ], size=(1280, height)).set_duration(intro_duration)
 
                 styled_intro = CompositeVideoClip([
                     video_styled[0].subclip(0, intro_duration).set_position((0, 0)),
                     video_styled[1].subclip(0, intro_duration).set_position((width, 0)),
                     video_styled[2].subclip(0, intro_duration).set_position((2 * width, 0))
-                ], size=(1280, height))
+                ], size=(1280, height)).set_duration(intro_duration)
 
                 raw_clips.append(raw_intro)
                 styled_clips.append(styled_intro)
@@ -381,6 +367,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 # ========== SEGMENTS 1-3: One plays, others frozen & faded ==========
                 for i in range(3):
                     dur = video_raw[i].duration
+
                     raw_parts = []
                     styled_parts = []
 
@@ -389,8 +376,8 @@ if uploaded_seq and len(uploaded_seq) == 3:
                             raw_clip = video_raw[j]
                             styled_clip = video_styled[j]
                         else:
-                            safe_t_raw = min(0.5, video_raw[j].duration - 0.1)
-                            safe_t_styled = min(0.5, video_styled[j].duration - 0.1)
+                            safe_t_raw = max(0.1, min(0.5, video_raw[j].duration - 0.1))
+                            safe_t_styled = max(0.1, min(0.5, video_styled[j].duration - 0.1))
 
                             raw_clip = video_raw[j].to_ImageClip(t=safe_t_raw).set_duration(dur).set_opacity(0.4)
                             styled_clip = video_styled[j].to_ImageClip(t=safe_t_styled).set_duration(dur).set_opacity(0.4)
@@ -398,12 +385,20 @@ if uploaded_seq and len(uploaded_seq) == 3:
                         raw_parts.append(raw_clip.set_position((j * width, 0)))
                         styled_parts.append(styled_clip.set_position((j * width, 0)))
 
-                    raw_clips.append(CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur))
-                    styled_clips.append(CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur))
+                    raw_composite = CompositeVideoClip(raw_parts, size=(1280, height)).set_duration(dur)
+                    styled_composite = CompositeVideoClip(styled_parts, size=(1280, height)).set_duration(dur)
 
-                # ========== CONCATENATE & EXPORT ==========
-                raw_sequence = concatenate_videoclips(raw_clips)
-                styled_sequence = concatenate_videoclips(styled_clips)
+                    raw_clips.append(raw_composite)
+                    styled_clips.append(styled_composite)
+
+                # ========== FINAL CONCATENATION ==========
+                raw_sequence = concatenate_videoclips(raw_clips, method="compose")
+                styled_sequence = concatenate_videoclips(styled_clips, method="compose")
+
+                # Safety Check
+                if raw_sequence.duration <= 0 or styled_sequence.duration <= 0:
+                    st.error("❌ One of the output videos has zero duration. Check your input files.")
+                    st.stop()
 
                 raw_output_path = os.path.join(tmpdir, "seq_raw.mp4")
                 styled_temp_path = os.path.join(tmpdir, "seq_styled_temp.mp4")
@@ -420,7 +415,7 @@ if uploaded_seq and len(uploaded_seq) == 3:
 
         st.success("✅ Sequential videos generated with 1-second intro + full playback + watermark!")
 
-# ✅ DISPLAY
+# ✅ DISPLAY SECTION
 if st.session_state["seq_raw_output"]:
     st.subheader("🎬 Raw Sequential Video (No Style, No Watermark)")
     st.video(st.session_state["seq_raw_output"])
