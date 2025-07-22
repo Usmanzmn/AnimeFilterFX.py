@@ -342,11 +342,22 @@ if uploaded_seq and len(uploaded_seq) == 3:
                         out.write(file.read())
                     paths.append(file_path)
 
+                # ✅ Duration check
+                for idx, path in enumerate(paths):
+                    clip = VideoFileClip(path)
+                    if clip.duration < 1.0:
+                        st.error(f"❌ Video {idx+1} is too short ({clip.duration:.2f} sec). Minimum 1s required.")
+                        st.stop()
+                    clip.close()
+
                 transform = get_transform_function(style_seq)
                 width, height = int(1280 / 3), 720
 
                 video_raw = [VideoFileClip(p).resize((width, height)) for p in paths]
-                video_styled = [VideoFileClip(p).fl_image(lambda f: rain_fn_3(transform(f))).resize((width, height)) for p in paths]
+                video_styled = [
+                    VideoFileClip(p).fl_image(lambda f: rain_fn_3(transform(f))).resize((width, height))
+                    for p in paths
+                ]
 
                 raw_clips, styled_clips = [], []
 
@@ -370,7 +381,6 @@ if uploaded_seq and len(uploaded_seq) == 3:
                 # ========== SEGMENTS 1-3: One plays, others frozen & faded ==========
                 for i in range(3):
                     dur = video_raw[i].duration
-
                     raw_parts = []
                     styled_parts = []
 
@@ -379,8 +389,11 @@ if uploaded_seq and len(uploaded_seq) == 3:
                             raw_clip = video_raw[j]
                             styled_clip = video_styled[j]
                         else:
-                            raw_clip = video_raw[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
-                            styled_clip = video_styled[j].to_ImageClip(t=1).set_duration(dur).set_opacity(0.4)
+                            safe_t_raw = min(0.5, video_raw[j].duration - 0.1)
+                            safe_t_styled = min(0.5, video_styled[j].duration - 0.1)
+
+                            raw_clip = video_raw[j].to_ImageClip(t=safe_t_raw).set_duration(dur).set_opacity(0.4)
+                            styled_clip = video_styled[j].to_ImageClip(t=safe_t_styled).set_duration(dur).set_opacity(0.4)
 
                         raw_parts.append(raw_clip.set_position((j * width, 0)))
                         styled_parts.append(styled_clip.set_position((j * width, 0)))
