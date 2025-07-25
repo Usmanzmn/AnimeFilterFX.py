@@ -18,12 +18,16 @@ st.title("🎨 AI Video Effects App")
 def get_transform_function(style_name):
     if style_name == "🌸 Soft Pastel Anime-Like Style":
         def pastel_style(frame):
-            r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
-            r = np.clip(r * 1.08 + 20, 0, 255)
-            g = np.clip(g * 1.06 + 15, 0, 255)
-            b = np.clip(b * 1.15 + 25, 0, 255)
-            blurred = (frame.astype(np.float32) * 0.4 +
-                       cv2.GaussianBlur(frame, (7, 7), 0).astype(np.float32) * 0.6)
+            # Boost colors more
+            r = np.clip(frame[:, :, 0] * 1.12 + 30, 0, 255)
+            g = np.clip(frame[:, :, 1] * 1.10 + 25, 0, 255)
+            b = np.clip(frame[:, :, 2] * 1.18 + 35, 0, 255)
+            enhanced = np.stack([r, g, b], axis=2).astype(np.uint8)
+
+            # Apply soft smoothing using bilateral filter for anime look
+            blurred = cv2.bilateralFilter(enhanced, 9, 75, 75).astype(np.float32)
+
+            # Light pink/blue tint
             tint = np.array([10, -5, 15], dtype=np.float32)
             result = np.clip(blurred + tint, 0, 255).astype(np.uint8)
             return result
@@ -31,18 +35,23 @@ def get_transform_function(style_name):
 
     elif style_name == "🎮 Cinematic Warm Filter":
         def warm_style(frame):
-            r, g, b = frame[:, :, 0], frame[:, :, 1], frame[:, :, 2]
-            r = np.clip(r * 1.15 + 15, 0, 255)
-            g = np.clip(g * 1.08 + 8, 0, 255)
-            b = np.clip(b * 0.95, 0, 255)
+            # Warmer highlights and stronger contrast
+            r = np.clip(frame[:, :, 0] * 1.25 + 25, 0, 255)
+            g = np.clip(frame[:, :, 1] * 1.10 + 15, 0, 255)
+            b = np.clip(frame[:, :, 2] * 0.90 - 5, 0, 255)
+            stacked = np.stack([r, g, b], axis=2).astype(np.float32)
+
+            # Dramatic vignette effect
             rows, cols = r.shape
             Y, X = np.ogrid[:rows, :cols]
             center = (rows / 2, cols / 2)
-            vignette = 1 - ((X - center[1])**2 + (Y - center[0])**2) / (1.5 * center[0] * center[1])
-            vignette = np.clip(vignette, 0.3, 1)[..., np.newaxis]
-            result = np.stack([r, g, b], axis=2).astype(np.float32) * vignette
-            grain = np.random.normal(0, 3, frame.shape).astype(np.float32)
-            return np.clip(result + grain, 0, 255).astype(np.uint8)
+            vignette = 1 - ((X - center[1]) ** 2 + (Y - center[0]) ** 2) / (1.1 * center[0] * center[1])
+            vignette = np.clip(vignette, 0.2, 1)[..., np.newaxis]
+
+            # Subtle film grain
+            grain = np.random.normal(0, 4, frame.shape).astype(np.float32)
+            result = np.clip(stacked * vignette + grain, 0, 255).astype(np.uint8)
+            return result
         return warm_style
 
     return lambda frame: frame
